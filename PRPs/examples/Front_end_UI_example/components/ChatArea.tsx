@@ -14,7 +14,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ session, isLoading, onSendMe
   if (!session) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-        <h1 className="text-2xl font-semibold">Gemini Chat</h1>
+        <h1 className="text-2xl font-semibold">Chat</h1>
         <p>Start a new conversation to begin.</p>
       </div>
     );

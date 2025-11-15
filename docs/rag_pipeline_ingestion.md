@@ -7,8 +7,10 @@ PostgreSQL with PGVector, `tsvector` and trigram indexes.
 
 For a step-by-step “clone → configure → run” walkthrough that covers the
 backend API, database setup and basic ingestion flow, start with the Quickstart
-section in `README.md`. This file then provides the detailed reference for
-ingestion-specific environment variables, CLI usage and troubleshooting.
+section in `README.md`. If you need the architecture map and the current
+placeholder/fully-wired status, skim `docs/architecture.md` and then come back
+here for the detailed reference covering ingestion-specific environment
+variables, CLI usage and troubleshooting.
 
 ## Required Environment Variables
 

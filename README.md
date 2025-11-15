@@ -81,7 +81,26 @@ This section is a concrete “clone → configure → run” guide for the curre
 codebase. It focuses on getting the backend API and ingestion pipeline running
 against your own PostgreSQL database. The frontend UI is provided as an example
 under `PRPs/examples/Front_end_UI_example` and will be integrated more tightly
-in a future phase.
+in a future phase. If you need a diagram-first view of how the pieces fit
+together, skim `docs/architecture.md` first and then return here for the exact
+commands.
+
+### Prerequisites: required vs optional components
+
+| Component | Required for “first question answered”? | Notes |
+| --- | --- | --- |
+| Python 3.11+, `uv` or `pip`, and GNU build tools | ✅ | Needed to create the virtual environment and install backend dependencies. |
+| PostgreSQL with `vector` (PGVector) and `pg_trgm` extensions | ✅ | Provides the storage queried by the agent. A local instance or Supabase project both work. |
+| `RAG_DATABASE_URL` / `DATABASE_URL` plus `psycopg[binary]` | ✅ | Required so ingestion can store chunks and the API can connect to the same database. |
+| Qwen embedding API key (`QWEN_API_KEY`) | ✅ | Needed for Docling chunk embeddings during ingestion. |
+| React/Vite frontend toolchain (Node.js 18+, pnpm/npm) | Optional | Only required if you want to run the example UI today. |
+| Docling optional extras (Whisper, OCR dependencies) | Optional | Install once you need advanced conversions; the default text chunker works for plain Markdown/Text. |
+| Fine-tuned embeddings workflow (`PRPs/examples/fine_tuned_embeddings.py`) | Optional | Run after you have baseline retrieval metrics. Not needed for smoke tests. |
+| Performance tests under `tests/performance/` | Optional | Opt-in benchmarks that require extra data and runtime. |
+
+When in doubt, start with the required items, confirm you can ingest and hit the
+`/chat` endpoint, and then layer in the optional enhancements as you harden the
+deployment.
 
 ### 1. Clone the repo and create a Python environment
 
@@ -212,6 +231,26 @@ npm run dev
 ```
 
 Refer to `PRPs/examples/Front_end_UI_example/README.md` for the latest details.
+
+### What you get after setup
+
+Once you complete Steps 1–6 you should have:
+
+- A running PostgreSQL instance with the Docling/PGVector schema applied and
+  your first ingestion run logged in `uv run python -m src.rag_pipeline.cli`.
+- Structured ingestion logs showing chunk counts, retries, and failures; use
+  `docs/post_ingestion_validation.md` to compare results or capture follow-up
+  observations.
+- The FastAPI server responding to `GET /health` and to the `POST /chat` curl
+  snippet above. The current `RAGAgent.chat` still returns a placeholder answer
+  so you can verify wiring before retrieval is fully connected.
+- Optional: the React/Vite UI running locally against Gemini until Phase 2
+  rewires it for the FastAPI backend. The architecture doc tracks that work.
+
+Call out the placeholder behaviour in onboarding conversations so early users
+know ingestion/logging/tests are already production-grade while retrieval and
+frontend wiring are being finished in the “End-to-End Developer & User
+Experience” plan.
 
 ## Getting started
 

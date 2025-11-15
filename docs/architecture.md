@@ -38,6 +38,47 @@ language model inference and modular skills into a cohesive system.
    (e.g., logging, admin functions).  Follow the modular patterns described
    in `docs/skill_archon.md`【898591313443642†L80-L104】.
 
+## End-to-end flow (clone → configure → query)
+
+The diagram above maps directly to the Quickstart in `README.md`:
+
+1. **Clone + environment.**  Copy the repository, create a Python (or `uv`)
+   environment and install `requirements.txt`.
+2. **Provision storage.**  Start PostgreSQL or Supabase with `vector` and
+   `pg_trgm` enabled and apply
+   `PRPs/examples/rag_pipeline_docling_supabase.sql`. Use the resulting
+   connection string for both `DATABASE_URL` and `RAG_DATABASE_URL`.
+3. **Configure models.**  Export `EMBEDDING_MODEL`, `LLM_MODEL`, and
+   `QWEN_API_KEY`. `src/shared/config.py` documents the defaults, and
+   `docs/rag_pipeline_ingestion.md` lists every ingestion toggle.
+4. **Ingest documents.**  Point `RAG_SOURCE_DIRS` at your corpora and run the
+   CLI (`uv run python -m src.rag_pipeline.cli`). Monitor chunk counts,
+   retries and metrics using structured logs plus
+   `docs/post_ingestion_validation.md`.
+5. **Start FastAPI.**  Launch `uv run uvicorn src.main:app --port 8030`,
+   verify `/health`, and hit `/chat` to confirm the wiring. The response is a
+   placeholder today but exercises logging/validation.
+6. **Optional UI.**  Run the React/Vite example
+   (`PRPs/examples/Front_end_UI_example`) with `npm run dev` if you want a
+   browser chat surface while the local backend integration is underway.
+
+## Required vs optional dependencies
+
+To reach the “first question answered” milestone you only need:
+
+- A Python 3.11+ environment with the packages from `requirements.txt`.
+- PostgreSQL with PGVector (`vector`) and `pg_trgm`.
+- A Qwen embedding endpoint plus `QWEN_API_KEY`.
+- Network access to whichever LLM endpoint you plan to call.
+
+Defer the following until you need them:
+
+- Docling’s optional Whisper/OCR dependencies.
+- The fine-tuned embeddings workflow (`PRPs/examples/fine_tuned_embeddings.py`).
+- Frontend tooling (Node.js 18+, pnpm/npm) unless you plan to modify the UI.
+- Performance benchmarks in `tests/performance/` and the Archon ingestion skill.
+
+
 ## Setup checklist
 
 1. **Provision hardware.**  Ensure your server or workstation has enough
@@ -65,6 +106,8 @@ language model inference and modular skills into a cohesive system.
 5. **Ingest documents.**  Place files into your ingestion folder and run
    the docling ingestion script.  Adjust chunk size and embedding model
    parameters to suit your use case【391127687261448†L592-L593】.
+   See `docs/rag_pipeline_ingestion.md` for the full configuration table and
+   CLI flags once you are ready to customise runs.
 6. **Develop the agent.**  Implement the RAG assistant using the
    Pydantic AI patterns.  The agent should:
    - Accept user queries.
@@ -90,6 +133,18 @@ Phase‑4 hardening work will adapt that example to call the local FastAPI
 UI can be used with the same RAG pipeline.  The top‑level `README.md` contains
 the current quickstart instructions for running the backend API and, optionally,
 the example frontend in development mode.
+
+## Current implementation status
+
+- **Ready today.**  The ingestion CLI, Docling chunking, logging and validation
+  workflows described in `docs/post_ingestion_validation.md` are fully wired.
+  Follow the Quickstart to ingest data and observe the structured logs.
+- **Placeholder responses.**  `RAGAgent.chat` still echoes queries.
+  Retrieval + LLM integration is tracked in
+  `PRPs/requests/next_steps_end_to_end_experience.md` (Phase 3).
+- **Frontend integration pending.**  The React/Vite example still targets
+  Gemini via `geminiService.ts`. Phase 2 of the plan will swap it over to the
+  FastAPI `/chat` endpoint once retrieval is live.
 
 ## Ingestion Skill
 
