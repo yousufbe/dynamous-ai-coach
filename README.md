@@ -1,162 +1,121 @@
-# Dynamous AI Coach
+# Local RAG AI Assistant – Foundation
 
-RAG-powered AI coaching assistant with YouTube transcript processing pipeline.
+Welcome to the **Local RAG AI Assistant** project.  This repository provides a
+foundation for building an on‑premise retrieval‑augmented generation (RAG)
+assistant for company employees.  The aim is to enable private, high‑quality
+question answering over your organisation’s documents without sending data to
+external services.  It combines state‑of‑the‑art open models, robust
+document processing, a hybrid search pipeline and agent‑tracking skills.
 
-> NOTE: This code isn't fully human vetted yet since it was created as a part of [my livestream](https://youtube.com/live/ZHcXavLTA5s). I will be refining this heavily soon!
+## Why build a local RAG assistant?
 
-## Features
+Retrieval‑augmented generation systems answer questions by retrieving relevant
+context from a collection of documents and passing that context into a
+language model.  Many RAG pipelines rely solely on dense vector embeddings.
+Dense vectors capture semantic meaning but struggle with exact values such as
+product codes, serial numbers or small tokens hidden in messy PDFs【445922077582970†L28-L33】.  A
+hybrid search approach combines dense, lexical and pattern matching methods
+【445922077582970†L49-L57】, enabling the assistant to find both conceptual
+information and exact identifiers reliably.  This foundation adopts a hybrid
+retrieval strategy to ensure minor details are never missed.
 
-### YouTube RAG Pipeline
-- **Automatic transcript processing**: Fetch, chunk, and index video transcripts
-- **Token-aware chunking**: Intelligent transcript segmentation (400-1000 tokens)
-- **Vector search**: Semantic search powered by Supabase + pgvector
-- **Flexible embedding providers**: OpenAI, Ollama, or OpenRouter
-- **Timestamp preservation**: Navigate directly to relevant video sections
+## Key components
 
-### AI Coach Agent
-- **Pydantic AI agent**: Supportive coaching assistant with RAG capabilities
-- **Semantic search**: Find relevant coaching insights across video transcripts
-- **Full transcript retrieval**: Get complete video transcripts with citations
-- **FastAPI streaming**: Real-time streaming responses via Server-Sent Events
-- **JWT authentication**: Secure access via Supabase Auth
-- **Rate limiting**: 5 requests per minute (configurable)
-- **Conversation management**: Auto-generated titles and message history
+This project draws inspiration from the [otto­mator‑agents](https://github.com/coleam00/ottomator-agents)
+and [context engineering template](https://github.com/coleam00/context-engineering-intro/tree/main/use-cases/pydantic-ai).
+The following building blocks are provided:
 
-## Quick Start
+| Component | Purpose | References |
+|---|---|---|
+| **Qwen3‑VL‑8B‑Instruct** | Multimodal instruction‑tuned LLM that supports
+256K context length, enhanced visual and spatial reasoning, expanded OCR and
+advanced multimodal understanding【230556131312387†L55-L90】.  Used as the primary
+assistant model. | Qwen model card |
+| **Qwen3‑Embedding‑0.6B** | High‑quality multilingual text embedding model
+with a 32k context window and up to 1024‑dimensional embeddings【984059247734186†L65-L104】.
+Provides dense semantic vectors for vector search. | Qwen embedding card |
+| **Docling** | Document processing pipeline that converts PDFs, Word, PowerPoint,
+Excel, HTML, Markdown, text and MP3 audio into clean text chunks and embeds
+them into a PGVector database【391127687261448†L490-L605】.  Supports audio transcription via
+Whisper and provides an interactive CLI for RAG queries. | Docling RAG agent |
+| **Hybrid search engine** | Combines dense vector search, sparse lexical search
+(BM25/TSVector) and pattern‑based retrieval (wildcards, n‑grams and fuzzy
+matching) to overcome the limitations of single‑method retrieval【445922077582970†L49-L60】.
+The agent dynamically adjusts weights based on the query type so that codes
+and exact strings can be found while still returning semantically related
+content【445922077582970†L61-L62】. | Hybrid search article |
+| **Fine‑tuned embeddings pipeline** | Custom SentenceTransformer fine‑tuning loop that
+learns from your own query/document pairs so retrieval reflects domain jargon.
+Includes a reference slice in `PRPs/examples/fine_tuned_embeddings.py` plus a
+process guide in `PRPs/ai_docs/fine-tuned-embeddings.md` covering data prep,
+training, evaluation and rollout considerations. | Philipp Schmid tutorial |
+| **Archon Claude skill** | Example of a Claude Code skill that wraps an
+existing knowledge base API in a token‑efficient interface【898591313443642†L6-L31】.
+Skills provide modular, shareable and automatically invoked capabilities for
+agent tracking and task management【898591313443642†L80-L104】.  While this project does
+not use the n8n environment, the skill demonstrates how to integrate
+workflow features into a Python agent. | Archon skill guide |
 
-**📖 See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed step-by-step instructions.**
-
-### 1. Install Dependencies
-
-```bash
-uv sync
-```
-
-### 2. Set Up Supabase Database
-
-Run the migrations in Supabase SQL Editor:
-```bash
-# 1. RAG Pipeline tables (channels, videos, transcript_chunks)
-# Copy contents of migrations/001_youtube_rag_schema.sql
-# Paste into Supabase Dashboard > SQL Editor > Run
-
-# 2. AI Agent tables (user_profiles, conversations, messages, requests)
-# Copy contents of migrations/002_agent_tables.sql
-# Paste into Supabase Dashboard > SQL Editor > Run
-```
-
-### 3. Configure Environment
-
-Copy `.env.example` to `.env` and fill in your credentials:
-
-```bash
-cp .env.example .env
-# Edit .env with your API keys
-```
-
-### 4. Run Pipeline
-
-```bash
-# Process videos from last 7 days
-uv run python -m src.rag_pipeline.cli
-
-# Custom parameters
-uv run python -m src.rag_pipeline.cli --channel-id UCxxxxx --days-back 14
-```
-
-### 5. Run AI Coach Agent (Optional)
-
-```bash
-# Start the FastAPI server (default port 8030)
-uv run uvicorn src.main:app --host 127.0.0.1 --port 8030 --reload
-
-# Custom port
-uv run uvicorn src.main:app --host 127.0.0.1 --port 8080 --reload
-
-# Or use python -m to run
-uv run python -m src.main
-
-# For containers/production (listen on all interfaces)
-uv run uvicorn src.main:app --host 0.0.0.0 --port 8030
-```
-
-**Endpoints:**
-- `GET /health` - Health check
-- `POST /api/pydantic-agent` - Streaming agent endpoint (requires JWT auth)
-
-## Project Structure
+## Repository structure
 
 ```
-src/
-├── agent/                   # AI Coach Agent core
-│   ├── config.py           # Model & environment config
-│   ├── deps.py             # Runtime dependencies
-│   └── agent.py            # Agent definition with system prompt
-├── tools/                   # Agent tools
-│   └── rag_tools/          # RAG search and retrieval
-│       ├── service.py      # Tool implementation + helpers
-│       └── tool.py         # Agent tool decorators
-├── api/                     # FastAPI application
-│   ├── main.py             # Streaming endpoint, auth, rate limiting
-│   └── db_utils.py         # Conversation & message management
-├── rag_pipeline/            # YouTube transcript pipeline
-│   ├── config.py           # Configuration management
-│   ├── schemas.py          # Pydantic data models
-│   ├── youtube_service.py  # Supadata API client
-│   ├── chunking_service.py # Token-aware chunking
-│   ├── embedding_service.py # Embedding generation
-│   ├── storage_service.py  # Supabase vector storage
-│   ├── pipeline.py         # Main orchestration
-│   └── cli.py              # Command-line interface
-└── utils/                   # Shared utilities
-    ├── logging.py          # Structured logging
-    └── clients.py          # Client initialization
-
-tests/
-├── agent/                   # Agent config tests
-├── tools/rag_tools/        # RAG tools unit tests
-├── api/                     # API endpoint tests
-├── rag_pipeline/           # Pipeline unit tests
-└── integration/            # Integration tests
+local_rag_assistant/
+├── README.md               # This overview
+├── PRPs/
+│   └── INITIAL.md          # Initial requirements for your agent
+└── docs/
+    ├── models.md           # Details on the chosen models
+    ├── docling.md          # Document ingestion & processing guide
+    ├── hybrid_search.md    # Explanation of the hybrid search strategy
+    ├── skill_archon.md     # Summary of the Archon skill concept
+    └── architecture.md     # High‑level architecture and setup guidance
 ```
 
-## Development
+## Getting started
 
-### Lint and Type Check
+1. **Define your requirements.**  Fill out `PRPs/INITIAL.md` with
+   organisational details: document types, privacy constraints, user roles and
+   use‑cases.  Follow the context engineering template’s guidelines to keep
+   requirements focused and avoid over‑engineering【848933225286564†L23-L55】.
 
-```bash
-# Run linter
-uv run ruff check src/
+2. **Read the documentation.**  The `docs/` folder summarises the models,
+   docling pipeline, hybrid search strategy and Archon skill.  These files
+   provide citations back to the original sources for deeper research.
 
-# Auto-fix
-uv run ruff check --fix src/
+3. **Set up your environment.**  Prepare a Python environment (>=3.9) and
+   install dependencies such as `transformers`, `sentence-transformers`,
+   `docling`, `psycopg2` and `pgvector`.  Provision a PostgreSQL database with
+   the PGVector extension.  Use Qwen3‑Embedding‑0.6B for computing dense
+   vectors and Qwen3‑VL‑8B‑Instruct as the assistant model.  See
+   `docs/architecture.md` for more guidance.
 
-# Type check
-uv run mypy src/
-```
+4. **Ingest documents.**  Place your corporate documents into an ingestion
+   folder and run the docling ingestion pipeline to populate the PGVector
+   database【391127687261448†L572-L607】.  Use hybrid search in your retrieval layer to
+   dynamically switch between dense, lexical and pattern modes based on the
+   query type【445922077582970†L49-L62】.
 
-### Run Tests
+5. **Fine-tune embeddings.**  Gather high-signal question/answer pairs (or
+   synthesize them) from your corpus, then follow
+   `PRPs/ai_docs/fine-tuned-embeddings.md` and
+   `PRPs/examples/fine_tuned_embeddings.py` to train a domain-specific
+   SentenceTransformer checkpoint, evaluate it against the base model, and
+   version the artifact so your ingestion/retrieval stack can swap models
+   without code edits.
 
-```bash
-# All tests
-uv run pytest tests/ -v
+6. **Develop and test the agent.**  Implement your agent using the Pydantic
+   AI patterns described in the context engineering template.  Start simple
+   and only add tools that serve your core purpose.
+   Use the Archon skill as inspiration for building modular capabilities and
+   for tracking tasks.
 
-# Unit tests only
-uv run pytest tests/ -v -m unit
+7. **Iterate and refine.**  Use the agent with a small group of employees,
+   gather feedback and update your requirements.  Expand the document corpus
+   and refine the hybrid search weights as needed.
 
-# Integration tests
-uv run pytest tests/ -m integration
-```
 
-## Architecture
 
-This project follows the **vertical slice architecture** with strict type safety:
-
-- Each feature is a self-contained slice
-- 100% type annotations (strict mypy)
-- Google-style docstrings
-- Structured logging for AI debugging
-
-## License
-
-MIT
+This foundation is meant to be a starting point.  Customise it to your
+organisation’s needs and follow best practices for security, privacy and
+performance.  The references cited throughout the documentation link back to
+the original resources for further reading and verification.

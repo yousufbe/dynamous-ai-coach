@@ -1,0 +1,78 @@
+# High‑Level Architecture & Setup
+
+This document outlines the recommended architecture and setup steps for your
+local RAG assistant.  It combines document ingestion, hybrid retrieval,
+language model inference and modular skills into a cohesive system.
+
+## Architectural overview
+
+```
+┌─────────────┐     ┌────────────────┐     ┌──────────────┐
+│   User      │───▶│ RAG Assistant  │───▶│ PGVector DB   │
+│ Interface   │    │ (Pydantic AI)  │    │ (PostgreSQL)  │
+└─────────────┘     └────────────────┘     └──────────────┘
+       │                         │
+       │                         ▼
+       │                 ┌──────────────┐
+       └───────────────▶│ Embedding     │
+                        │ Model (Qwen3) │
+                        └──────────────┘
+```
+
+1. **User interface.**  Employees interact with the assistant via a CLI or
+   web interface.  The interface sends natural language questions and
+   receives streamed responses with citations.
+2. **RAG assistant.**  The core agent coordinates retrieval and generation.
+   It accepts a query, performs hybrid search over the PGVector database,
+   assembles the most relevant chunks and feeds them into the Qwen3‑VL
+   language model.  It returns the generated answer with references.
+3. **PGVector database.**  Stores all document chunks with metadata and
+   embeddings.  Additional indexes support lexical and pattern searches for
+   hybrid retrieval【391127687261448†L549-L570】.【445922077582970†L49-L62】
+4. **Embedding model.**  Generates dense vectors for document chunks and
+   queries.  Use Qwen3‑Embedding‑0.6B to ensure multilingual and long
+   context support【984059247734186†L65-L104】.
+5. **Skills / Modules.**  Optional modules provide extended capabilities
+   (e.g., logging, admin functions).  Follow the modular patterns described
+   in `docs/skill_archon.md`【898591313443642†L80-L104】.
+
+## Setup checklist
+
+1. **Provision hardware.**  Ensure your server or workstation has enough
+   resources to run an 8 B‑parameter model.  If not, use a smaller variant or
+   offload inference to GPUs via vLLM or similar frameworks.  Reserve
+   separate resources for the embedding model.
+2. **Install dependencies.**  Create a Python environment (e.g., via
+   `venv` or `conda`).  Install the following:
+   - `transformers` (>=4.57) for Qwen3‑VL support【230556131312387†L121-L144】.
+   - `sentence-transformers` and `qwen3` packages for embeddings【984059247734186†L147-L160】.
+   - `docling` for document parsing, chunking and ingestion【391127687261448†L490-L605】.
+   - `pgvector`, `psycopg2` for PostgreSQL integration.
+   - `pg_trgm` extension for pattern search (enable in PostgreSQL).
+3. **Configure environment variables.**  Use a `.env` file to store
+   sensitive settings:
+   - `DATABASE_URL` – PostgreSQL connection string【391127687261448†L532-L537】.
+   - `EMBEDDING_MODEL` – set to `Qwen/Qwen3-Embedding-0.6B` (optionally
+     include custom embedding dimension).
+   - `LLM_MODEL` – path or identifier for your Qwen3‑VL‑8B‑Instruct weights.
+   - Additional settings such as chunk size or ingestion batch size.
+4. **Set up the database.**  Enable the PGVector extension and run the
+   schema to create the `documents` and `chunks` tables and the
+   `match_chunks()` function【391127687261448†L549-L570】.  Create additional
+   `tsvector` and `pg_trgm` indexes for lexical and pattern search.
+5. **Ingest documents.**  Place files into your ingestion folder and run
+   the docling ingestion script.  Adjust chunk size and embedding model
+   parameters to suit your use case【391127687261448†L592-L593】.
+6. **Develop the agent.**  Implement the RAG assistant using the
+   Pydantic AI patterns.  The agent should:
+   - Accept user queries.
+   - Use the query analyser to decide retrieval weights.
+   - Perform dense, lexical and pattern searches and combine results.
+   - Assemble a prompt with selected chunks and call the Qwen3‑VL model.
+   - Stream the answer back to the user with citations.
+7. **Test and iterate.**  Begin with a small corpus and refine retrieval
+   heuristics.  Monitor response quality and performance.  Add skills as
+   needed for logging or analytics.
+
+Following this architecture will help you build a reliable, extensible and
+privacy‑preserving RAG assistant tailored to your organisation’s needs.
