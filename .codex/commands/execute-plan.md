@@ -22,19 +22,26 @@ The plan file will contain:
 
 ## Step 2: Project Setup in Archon
 
-1. Check if a project ID is specified in CLAUDE.md for this feature
-   - Look for any Archon project references in CLAUDE.md
+1. Check if a project ID is specified in AGENTS.md for this feature
+   - Look for any Archon project references in AGENTS.md
    - If found, use that project ID
 
 2. If no project exists:
-   - Create a new project in Archon using `mcp__archon__manage_project`
-   - Use a descriptive title based on the plan's objectives
-   - Store the project ID for use throughout execution
+   - Create a project using:
+```python
+   result = client.create_project(
+      name="API Redesign",
+      description="Complete API overhaul with v2 endpoints"
+   )
+   project_id = result['project']['id']
+```
+   - More information in the folder C:\Users\yueey\My_Projects\Local llm\local_rag_assistant-codex\.codex\skills\archon
+   C:\Users\yueey\My_Projects\Local llm\local_rag_assistant-codex\.codex\skills\archon\SKILL.md
 
 ## Step 3: Create All Tasks in Archon
 
 For EACH task identified in the plan:
-1. Create a corresponding task in Archon using `mcp__archon__manage_task("create", ...)`
+1. Create a corresponding task in Archon using
 2. Set initial status as "todo"
 3. Include detailed descriptions from the plan
 4. Maintain the task order/priority from the plan
@@ -57,7 +64,21 @@ Before implementation begins:
 For EACH task in sequence:
 
 ### 5.1 Start Task
-- Move the current task to "doing" status in Archon: `mcp__archon__manage_task("update", task_id=..., status="doing")`
+- Move the current task to "doing" status in Archon: 
+   ```python
+   from scripts.archon_client import ArchonClient
+
+   # Use the host URL provided by user
+   archon_host = "http://localhost:8181"  # Replace with user's  actual host
+   client = ArchonClient(base_url=archon_host)
+
+   task = client.create_task(
+       project_id="project-uuid",
+       title="Implement OAuth2 authentication",
+       description="Add OAuth2 flow with JWT tokens",
+       status="todo"  # todo, in_progress, done, blocked
+   )
+   ```
 - Use TodoWrite to track local subtasks if needed
 
 ### 5.2 Implement
@@ -69,7 +90,13 @@ For EACH task in sequence:
 - Ensure code quality and consistency
 
 ### 5.3 Complete Task
-- Once implementation is complete, move task to "review" status: `mcp__archon__manage_task("update", task_id=..., status="review")`
+- Once implementation is complete, move task to "review" status:
+```python
+client.update_task(
+    task_id="task-uuid",
+    updates={"status": "complete"}
+)
+```
 - DO NOT mark as "done" yet - this comes after validation
 
 ### 5.4 Proceed to Next
@@ -104,7 +131,13 @@ Additional validation you should perform:
 After successful validation:
 
 1. For each task that has corresponding unit test coverage:
-   - Move from "review" to "done" status: `mcp__archon__manage_task("update", task_id=..., status="done")`
+   - Move from "review" to "done" status: 
+```python
+client.update_task(
+    task_id="task-uuid",
+    updates={"status": "done"}
+)
+```
 
 2. For any tasks without test coverage:
    - Leave in "review" status for future attention

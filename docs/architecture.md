@@ -74,5 +74,16 @@ language model inference and modular skills into a cohesive system.
    heuristics.  Monitor response quality and performance.  Add skills as
    needed for logging or analytics.
 
+## Ingestion Skill
+
+The ingestion skill wraps the pipeline so that Archon-managed agents can
+trigger document refreshes without manual CLI access. It exposes a tool named
+`ingestion_skill` with structured docstrings describing when to use it
+(reindexing or validation runs), when to avoid it (serving user questions),
+and how to control verbosity via the `response_format` flag. Internally it
+builds the same services as the CLI, invokes `run_ingestion_job`, and returns
+an `IngestionSkillResponse` containing both a human-readable summary and the
+raw `IngestionResult` for downstream automation.
+
 Following this architecture will help you build a reliable, extensible and
 privacy‑preserving RAG assistant tailored to your organisation’s needs.
