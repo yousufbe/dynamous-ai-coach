@@ -5,6 +5,11 @@ RAG ingestion pipeline. The pipeline scans local folders, converts documents
 with Docling, generates Qwen embeddings and stores results in Supabase/
 PostgreSQL with PGVector, `tsvector` and trigram indexes.
 
+For a step-by-step “clone → configure → run” walkthrough that covers the
+backend API, database setup and basic ingestion flow, start with the Quickstart
+section in `README.md`. This file then provides the detailed reference for
+ingestion-specific environment variables, CLI usage and troubleshooting.
+
 ## Required Environment Variables
 
 | Variable | Description | Default |

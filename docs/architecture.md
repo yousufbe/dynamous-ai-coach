@@ -21,7 +21,9 @@ language model inference and modular skills into a cohesive system.
 
 1. **User interface.**  Employees interact with the assistant via a CLI or
    web interface.  The interface sends natural language questions and
-   receives streamed responses with citations.
+   receives streamed responses with citations.  A FastAPI backend is exposed
+   under `src/main.py`, and a React/Vite‑based chat UI example lives in
+   `PRPs/examples/Front_end_UI_example`.
 2. **RAG assistant.**  The core agent coordinates retrieval and generation.
    It accepts a query, performs hybrid search over the PGVector database,
    assembles the most relevant chunks and feeds them into the Qwen3‑VL
@@ -73,6 +75,21 @@ language model inference and modular skills into a cohesive system.
 7. **Test and iterate.**  Begin with a small corpus and refine retrieval
    heuristics.  Monitor response quality and performance.  Add skills as
    needed for logging or analytics.
+
+## Frontend user interface
+
+The initial implementation focuses on the backend API and ingestion pipeline.
+A working frontend example is included under
+`PRPs/examples/Front_end_UI_example`, built with React and Vite.  This example
+currently targets the Gemini API via a small service helper, but its layout,
+session management and chat components are representative of the desired UX
+for the local RAG assistant.
+
+Phase‑4 hardening work will adapt that example to call the local FastAPI
+`/chat` endpoint instead of the Gemini backend, so that a fully local browser
+UI can be used with the same RAG pipeline.  The top‑level `README.md` contains
+the current quickstart instructions for running the backend API and, optionally,
+the example frontend in development mode.
 
 ## Ingestion Skill
 

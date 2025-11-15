@@ -1,0 +1,5 @@
+
+{
+  "name": "Gemini Multimodal Chat",
+  "description": "A simple and elegant chat interface that interacts with the Gemini API, supporting text, image, and document uploads. Features a persistent chat history for easy navigation of past conversations."
+}

@@ -62,14 +62,156 @@ workflow features into a Python agent. | Archon skill guide |
 local_rag_assistant/
 ├── README.md               # This overview
 ├── PRPs/
-│   └── INITIAL.md          # Initial requirements for your agent
+│   ├── INITIAL.md          # Initial requirements for your agent
+│   ├── ai_docs/            # Design guides (logging, tools, testing, embeddings)
+│   ├── examples/           # Reference pipeline, SQL, and UI examples
+│   └── requests/           # Implementation plans (rag pipeline, validation, phase 4)
 └── docs/
     ├── models.md           # Details on the chosen models
     ├── docling.md          # Document ingestion & processing guide
     ├── hybrid_search.md    # Explanation of the hybrid search strategy
-    ├── skill_archon.md     # Summary of the Archon skill concept
-    └── architecture.md     # High‑level architecture and setup guidance
+    ├── archon_SKILL.md     # Summary of the Archon skill concept
+    ├── architecture.md     # High‑level architecture and setup guidance
+    └── rag_pipeline_ingestion.md  # RAG ingestion config, env vars, and CLI usage
 ```
+
+## Quickstart: run the local assistant
+
+This section is a concrete “clone → configure → run” guide for the current
+codebase. It focuses on getting the backend API and ingestion pipeline running
+against your own PostgreSQL database. The frontend UI is provided as an example
+under `PRPs/examples/Front_end_UI_example` and will be integrated more tightly
+in a future phase.
+
+### 1. Clone the repo and create a Python environment
+
+```bash
+git clone https://github.com/<your-org>/local_rag_assistant-codex.git
+cd local_rag_assistant-codex
+
+python -m venv .venv
+source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+If you prefer `uv`, you can instead create and use a uv-managed environment and
+run commands with `uv run`.
+
+### 2. Provision PostgreSQL with PGVector
+
+1. Start a local PostgreSQL instance (or Supabase project) with:
+   - `vector` (PGVector) extension enabled.
+   - `pg_trgm` extension enabled for trigram search.
+2. Create a database (for example `rag_local`).
+3. Apply the ingestion schema:
+
+```bash
+export DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/rag_local"
+psql "$DATABASE_URL" -f PRPs/examples/rag_pipeline_docling_supabase.sql
+```
+
+For the ingestion pipeline, set `RAG_DATABASE_URL` as well. In a simple local
+setup you can point both variables at the same database:
+
+```bash
+export RAG_DATABASE_URL="$DATABASE_URL"
+```
+
+The full list of ingestion-related environment variables is documented in
+`docs/rag_pipeline_ingestion.md`.
+
+### 3. Configure the LLM and embedding model
+
+The agent and pipeline are configuration‑driven:
+
+- `EMBEDDING_MODEL` (default: `Qwen/Qwen3-Embedding-0.6B`)
+- `LLM_MODEL` (default: `Qwen/Qwen3-VL-8B-Instruct`)
+- `QWEN_API_KEY` (used by the embedding client when calling hosted Qwen APIs)
+- `QWEN_EMBEDDING_BASE_URL` (optional override for the embedding endpoint)
+
+For a minimal local setup you can start by accepting the default model names
+and providing only the embedding API key:
+
+```bash
+export EMBEDDING_MODEL="Qwen/Qwen3-Embedding-0.6B"
+export LLM_MODEL="Qwen/Qwen3-VL-8B-Instruct"
+export QWEN_API_KEY="sk-..."                  # from your Qwen/DashScope account
+```
+
+The agent’s high‑level configuration is defined in `src/shared/config.py`, and
+the ingestion‑specific configuration (chunk sizes, source directories, retries)
+is defined in `src/rag_pipeline/config.py` and documented in
+`docs/rag_pipeline_ingestion.md`.
+
+> Note: At the moment the `/chat` endpoint returns a placeholder answer while the
+> ingestion and retrieval wiring is being finalised. This is intentional so you
+> can validate deployment and logging behaviour before connecting a real model.
+
+### 4. Ingest documents into the database
+
+1. Place your documents under `./documents` (the default) or configure
+   `RAG_SOURCE_DIRS` to point to one or more folders:
+
+   ```bash
+   export RAG_SOURCE_DIRS="./documents"
+   ```
+
+2. Optionally tweak chunking and embedding settings (see the table in
+   `docs/rag_pipeline_ingestion.md` for all available environment variables).
+
+3. Run the ingestion CLI to populate the database:
+
+   ```bash
+   uv run python -m src.rag_pipeline.cli --output-format text
+   # or, if using plain Python:
+   python -m src.rag_pipeline.cli --output-format text
+   ```
+
+The CLI will scan your folders, send chunks to the embedding service, and write
+results into the configured PostgreSQL database. A non‑zero exit code indicates
+ingestion failures; see `docs/rag_pipeline_ingestion.md` and
+`docs/post_ingestion_validation.md` for troubleshooting guidance.
+
+### 5. Run the backend API
+
+Start the FastAPI application that exposes health checks and the `/chat`
+endpoint:
+
+```bash
+uv run uvicorn src.main:app --host 0.0.0.0 --port 8030 --reload
+```
+
+You can then:
+
+- Check health: `curl http://localhost:8030/health`
+- Send a test chat request:
+
+  ```bash
+  curl -X POST http://localhost:8030/chat \
+    -H "Content-Type: application/json" \
+    -d '{"query": "How do I use this assistant?"}'
+  ```
+
+This will exercise the agent wiring and logging. Once retrieval and generation
+are fully connected to the ingestion pipeline, this endpoint will return
+answers grounded in your ingested documents.
+
+### 6. (Optional) Try the example frontend UI
+
+A working frontend UI example built with React and Vite lives in
+`PRPs/examples/Front_end_UI_example`. It currently targets the Gemini API via a
+`geminiService` helper. The planned Phase 4 work will adapt this example to use
+the local FastAPI `/chat` endpoint instead so you can run a fully local UI.
+
+For now you can run the example as‑is to explore the UI patterns:
+
+```bash
+cd PRPs/examples/Front_end_UI_example
+npm install
+npm run dev
+```
+
+Refer to `PRPs/examples/Front_end_UI_example/README.md` for the latest details.
 
 ## Getting started
 
