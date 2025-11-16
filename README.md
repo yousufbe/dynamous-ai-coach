@@ -111,6 +111,8 @@ cd local_rag_assistant-codex
 python -m venv .venv
 source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+
+cp .env.example .env  # fill in database + model values before running anything
 ```
 
 If you prefer `uv`, you can instead create and use a uv-managed environment and
@@ -145,7 +147,10 @@ The agent and pipeline are configuration‑driven:
 
 - `EMBEDDING_MODEL` (default: `Qwen/Qwen3-Embedding-0.6B`)
 - `LLM_MODEL` (default: `Qwen/Qwen3-VL-8B-Instruct`)
+- `LLM_BASE_URL` (OpenAI-compatible chat endpoint; leave blank to use the local fallback)
+- `LLM_API_KEY` (token for the configured LLM endpoint)
 - `QWEN_API_KEY` (used by the embedding client when calling hosted Qwen APIs)
+- `RETRIEVAL_TOP_K` / `RETRIEVAL_MIN_SCORE` (tune how many chunks are pulled into prompts)
 - `QWEN_EMBEDDING_BASE_URL` (optional override for the embedding endpoint)
 
 For a minimal local setup you can start by accepting the default model names
@@ -155,16 +160,14 @@ and providing only the embedding API key:
 export EMBEDDING_MODEL="Qwen/Qwen3-Embedding-0.6B"
 export LLM_MODEL="Qwen/Qwen3-VL-8B-Instruct"
 export QWEN_API_KEY="sk-..."                  # from your Qwen/DashScope account
+export LLM_BASE_URL="http://localhost:11434" # or your hosted endpoint, if available
+export LLM_API_KEY="sk-..."                  # omit when using the fallback response
 ```
 
 The agent’s high‑level configuration is defined in `src/shared/config.py`, and
 the ingestion‑specific configuration (chunk sizes, source directories, retries)
 is defined in `src/rag_pipeline/config.py` and documented in
 `docs/rag_pipeline_ingestion.md`.
-
-> Note: At the moment the `/chat` endpoint returns a placeholder answer while the
-> ingestion and retrieval wiring is being finalised. This is intentional so you
-> can validate deployment and logging behaviour before connecting a real model.
 
 ### 4. Ingest documents into the database
 

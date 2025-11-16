@@ -52,6 +52,9 @@ class DatabaseClientProtocol(Protocol):
     def fetchval(self, query: str, parameters: SQLParams = None) -> Any:
         """Fetch a single scalar value."""
 
+    def fetchall(self, query: str, parameters: SQLParams = None) -> Sequence[Mapping[str, Any]]:
+        """Fetch all rows for a query."""
+
     def transaction(self) -> ContextManager[Any]:
         """Return a context manager that wraps a database transaction."""
 
@@ -89,6 +92,11 @@ class PsycopgDatabaseClient(DatabaseClientProtocol):
             cursor.execute(query, parameters)
             row = cursor.fetchone()
             return None if row is None else row[0]
+
+    def fetchall(self, query: str, parameters: SQLParams = None) -> Sequence[Mapping[str, Any]]:
+        with self._connection.cursor(row_factory=dict_row) as cursor:  # type: ignore[arg-type]
+            cursor.execute(query, parameters)
+            return cursor.fetchall()
 
     def transaction(self) -> ContextManager[Any]:
         return self._connection.transaction()
@@ -280,6 +288,33 @@ class SupabaseStore:
             "delete_chunks_for_source",
             lambda: self._db.execute(sql, (source_id,)),
         )
+
+    def match_chunks(
+        self,
+        *,
+        query_embedding: Sequence[float],
+        match_count: int,
+        min_score: float,
+    ) -> Sequence[Mapping[str, Any]]:
+        """Return chunks matching the provided embedding using DB function."""
+        sql = """
+            select
+                chunk_id,
+                source_id,
+                document_name,
+                content,
+                score,
+                metadata
+            from rag.match_chunks(%s::vector, %s, %s)
+        """
+        rows = self._run_query(
+            "match_chunks",
+            lambda: self._db.fetchall(
+                sql,
+                (list(query_embedding), match_count, min_score),
+            ),
+        )
+        return rows or []
 
     @staticmethod
     def has_content_changed(
