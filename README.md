@@ -178,6 +178,12 @@ is defined in `src/rag_pipeline/config.py` and documented in
    export RAG_SOURCE_DIRS="./documents"
    ```
 
+   For a quick smoke test, point at the bundled fixtures instead:
+
+   ```bash
+   export RAG_SOURCE_DIRS="documents/fixtures"
+   ```
+
 2. Optionally tweak chunking and embedding settings (see the table in
    `docs/rag_pipeline_ingestion.md` for all available environment variables).
 
@@ -245,15 +251,16 @@ Once you complete Steps 1–6 you should have:
   `docs/post_ingestion_validation.md` to compare results or capture follow-up
   observations.
 - The FastAPI server responding to `GET /health` and to the `POST /chat` curl
-  snippet above. The current `RAGAgent.chat` still returns a placeholder answer
-  so you can verify wiring before retrieval is fully connected.
+  snippet above. When `RAG_DATABASE_URL` and the LLM endpoint are configured,
+  `RAGAgent.chat` retrieves chunks from PostgreSQL/PGVector and returns grounded
+  answers with citations. If either dependency is missing, it falls back to a
+  deterministic summary so you can still verify wiring.
 - Optional: the React/Vite UI running locally against Gemini until Phase 2
   rewires it for the FastAPI backend. The architecture doc tracks that work.
 
-Call out the placeholder behaviour in onboarding conversations so early users
-know ingestion/logging/tests are already production-grade while retrieval and
-frontend wiring are being finished in the “End-to-End Developer & User
-Experience” plan.
+Call out the dependency requirements in onboarding conversations so early users
+know chat responses are grounded only when the database and LLM endpoint are
+both configured; otherwise they will see the fallback summary response.
 
 ## Getting started
 

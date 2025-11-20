@@ -68,8 +68,7 @@ For EACH task in sequence:
    ```python
    from scripts.archon_client import ArchonClient
 
-   # Use the host URL provided by user
-   archon_host = "http://localhost:8181"  # Replace with user's  actual host
+   archon_host = "http://localhost:8181" 
    client = ArchonClient(base_url=archon_host)
 
    task = client.create_task(
@@ -98,6 +97,7 @@ client.update_task(
 )
 ```
 - DO NOT mark as "done" yet - this comes after validation
+- Before moving to "review", update user-facing documentation impacted by the change (README.md, AGENTS.md, relevant `docs/*.md` or PRP notes) so the state of the system remains accurate.
 
 ### 5.4 Proceed to Next
 - Move to the next task in the list

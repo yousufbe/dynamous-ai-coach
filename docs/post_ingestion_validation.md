@@ -1,34 +1,35 @@
-# Post-Ingestion Validation Summary — 2025-11-15
+# Post-Ingestion Validation Summary — 2025-11-20
 
-This note captures the validation evidence and follow-up observations for the
-post-ingestion readiness plan.
+This note captures the latest validation evidence after aligning documentation
+and enabling retrieval-backed chat. All commands were run from the repo root
+using the project virtualenv binaries.
 
 ## Validation Commands
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `.venv/bin/ruff check src tests` | ✅ Pass | All lint violations (unused imports) resolved. |
-| `.venv/bin/mypy src` | ✅ Pass | Added package markers and tightened Supabase/Qwen typing to satisfy strict mode. |
-| `.venv/bin/pytest tests -m "not performance"` | ✅ 41 passed, 1 deselected | Added pytest path config + httpx dependency so tests import `src.*`. |
+| `.venv/bin/ruff check src tests` | ✅ Pass | No findings. |
+| `.venv/bin/mypy src` | ✅ Pass | Strict mode clean. |
+| `.venv/bin/pytest tests -m "not performance"` | ✅ 45 passed, 1 deselected | One performance suite deselected by marker. |
 
 ## Tooling & Environment
 
-- Bootstrapped `.venv` with `get-pip.py` because system Python lacked ensurepip.
-- Installed runtime + dev dependencies from `requirements.txt` (added `httpx` for Starlette test client).
-- Confirmed tool availability via `ruff --version`, `mypy --version`, `pytest --version`.
+- Python 3.12.3, ruff 0.14.5, mypy 1.18.2, pytest 9.0.1 (virtualenv binaries).
+- Tests run with `-m "not performance"` to keep performance benchmarks opt-in.
 
 ## Code Adjustments
 
-- **Docling Chunker:** Hardened `_DoclingBackend` to wrap conversion failures in `ChunkingError` and disable the backend after a failure so tests can assert fallback mode. Added JSON-value coercion helpers + namespace package markers to satisfy mypy.
-- **Pipeline:** Reworked `_merge_request_overrides` to use typed `replace` calls and added a safe default logger factory to `PipelineServices`.
-- **Qwen Client:** Ensured `from_config` always passes a concrete base URL string.
-- **Supabase Store:** Refined type aliases for batch executions and transaction contexts.
-- **Logging:** Marked `LoggerProtocol` as `@runtime_checkable` so `isinstance` checks succeed.
-- **Ingestion Skill Tool:** Rewrote the tool docstring to follow the agent-facing template (guidance, performance notes, examples).
-- **Pytest Config:** Added `pytest.ini` with `pythonpath = .` so modules import cleanly.
+- No code changes were required for this validation run; prior adjustments (Docling backend hardening, pipeline/config typing, Archon skill docstring) remain in place.
 
 ## Known Follow-Ups
 
-- Optional hardening tasks (Phase 4 of the plan) remain in `todo` status inside Archon for future prioritization.
-- Performance benchmark suite (`tests/performance`) stays deselected; run manually when hardware access is available.
-- Docling backend is disabled for the remainder of a process after a conversion failure. Re-enable it conditionally if future workloads mix supported/unsupported formats.
+- Performance benchmark suite (`tests/performance`) remains deselected; run manually on suitable hardware.
+- If retrieval/LLM configuration changes, re-run the toolchain and update this note to keep dates/results fresh.
+- Fixture-only ingestion runs are acceptable for smoke tests; set `RAG_SOURCE_DIRS=documents/fixtures` when you only need to validate the pipeline wiring.
+
+## Fixture Ingestion Checklist (Smoke Test)
+
+- Environment variables: `RAG_DATABASE_URL` and `QWEN_API_KEY` exported; optionally `RAG_SOURCE_DIRS=documents/fixtures`.
+- Command exits 0: `uv run python -m src.rag_pipeline.cli --output-format text`.
+- CLI summary shows both fixture files (`sample-handbook.md`, `sample-runbook.txt`) with non-zero chunk counts.
+- No embedding or database errors reported in the run log.

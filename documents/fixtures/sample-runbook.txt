@@ -1,0 +1,19 @@
+Incident runbook: RAG ingestion pipeline
+
+Scope:
+- Small fixture corpus stored in documents/fixtures
+- Pipeline writes chunks to the PGVector database configured via RAG_DATABASE_URL
+
+Steps:
+1) Confirm prerequisites
+   - Environment variables: RAG_DATABASE_URL, QWEN_API_KEY
+   - Optional: RAG_SOURCE_DIRS set to documents/fixtures
+2) Run the ingestion CLI
+   - Command: uv run python -m src.rag_pipeline.cli --output-format text
+3) Validate
+   - Check CLI summary for chunk counts per file
+   - Spot-check that the database contains new chunks tied to source paths
+
+Rollbacks:
+- If ingestion fails, clear partial rows for the fixture files from the chunks table.
+- Re-run the ingestion once credentials or connectivity issues are resolved.

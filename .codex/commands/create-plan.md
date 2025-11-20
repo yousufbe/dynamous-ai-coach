@@ -7,6 +7,8 @@ argument-hint: [plan-description-or-requirements-file]
 
 You are about to create a comprehensive implementation plan based on initial requirements. This involves extensive research, analysis, and planning to produce a detailed roadmap for execution.
 
+Please number the plan in ascending order based on when the plan was made relative to the other plans. (for example, the first plan's name will be 1-plan_name.md, the third will be 3-plan_name.md etc)
+
 IMPORTANT: The plan should be detailed, however not more than 1000 lines
 
 ## Step 1: Read and Analyze Requirements
@@ -79,6 +81,7 @@ Document key resources for implementation:
 - Code examples from research
 - Patterns to follow from the codebase
 - Libraries or dependencies to add
+- **Documentation updates:** Identify which user-facing docs (README.md, AGENTS.md, `docs/*.md`, relevant PRPs) must be updated when the planned work changes behaviour, and include tasks for those updates.
 
 ## Step 4: Create the Plan Document
 

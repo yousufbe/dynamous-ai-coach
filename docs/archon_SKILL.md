@@ -110,7 +110,7 @@ After receiving the host URL, verify the connection using the helper script:
 
 ```bash
 # Use the provided helper script to verify connection and list knowledge
-cd .claude/skills/archon/scripts
+cd .codex/skills/archon/scripts
 python3 list_knowledge.py http://localhost:8181
 ```
 
@@ -118,7 +118,7 @@ Or use the Python client directly:
 
 ```python
 import sys
-sys.path.insert(0, '.claude/skills/archon/scripts')
+sys.path.insert(0, '.codex/skills/archon/scripts')
 from archon_client import ArchonClient
 
 archon_host = "http://localhost:8181"  # Use the URL provided by user
@@ -577,7 +577,7 @@ Complete Python client for all Archon API endpoints. Provides the `ArchonClient`
 **Import and use with user-provided host:**
 ```python
 import sys
-sys.path.insert(0, '.claude/skills/archon/scripts')
+sys.path.insert(0, '.codex/skills/archon/scripts')
 from archon_client import ArchonClient
 
 # Always use the host URL obtained from the user
@@ -590,7 +590,7 @@ Helper script to quickly list all knowledge base items with connection verificat
 
 **Usage:**
 ```bash
-cd .claude/skills/archon/scripts
+cd .codex/skills/archon/scripts
 python3 list_knowledge.py                      # Uses default localhost:8181
 python3 list_knowledge.py http://192.168.1.100:8181  # Custom host
 ```

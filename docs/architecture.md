@@ -54,10 +54,14 @@ The diagram above maps directly to the Quickstart in `README.md`:
 4. **Ingest documents.**  Point `RAG_SOURCE_DIRS` at your corpora and run the
    CLI (`uv run python -m src.rag_pipeline.cli`). Monitor chunk counts,
    retries and metrics using structured logs plus
-   `docs/post_ingestion_validation.md`.
+   `docs/post_ingestion_validation.md`. For a smoke test without real data,
+   set `RAG_SOURCE_DIRS=documents/fixtures` to ingest the bundled sample corpus.
 5. **Start FastAPI.**  Launch `uv run uvicorn src.main:app --port 8030`,
-   verify `/health`, and hit `/chat` to confirm the wiring. The response is a
-   placeholder today but exercises logging/validation.
+   verify `/health`, and hit `/chat` to confirm the wiring. With
+   `RAG_DATABASE_URL` and an LLM endpoint configured, `/chat` performs retrieval
+   over ingested chunks and returns grounded answers with citations. If either
+   dependency is missing, it falls back to a deterministic summary so you can
+   still validate wiring and logs.
 6. **Optional UI.**  Run the React/Vite example
    (`PRPs/examples/Front_end_UI_example`) with `npm run dev` if you want a
    browser chat surface while the local backend integration is underway.

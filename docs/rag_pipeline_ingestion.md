@@ -7,10 +7,10 @@ PostgreSQL with PGVector, `tsvector` and trigram indexes.
 
 For a step-by-step “clone → configure → run” walkthrough that covers the
 backend API, database setup and basic ingestion flow, start with the Quickstart
-section in `README.md`. If you need the architecture map and the current
-placeholder/fully-wired status, skim `docs/architecture.md` and then come back
-here for the detailed reference covering ingestion-specific environment
-variables, CLI usage and troubleshooting.
+section in `README.md`. If you need the architecture map and the current chat
+pipeline status, skim `docs/architecture.md` and then come back here for the
+detailed reference covering ingestion-specific environment variables, CLI usage
+and troubleshooting.
 
 ## Required Environment Variables
 
@@ -38,14 +38,18 @@ variables, CLI usage and troubleshooting.
 | `QWEN_API_KEY` | API key used by the embedding client. | _empty_ |
 | `QWEN_EMBEDDING_BASE_URL` | Override base URL for Qwen embeddings. | DashScope default |
 
+For smoke tests, you can target the bundled fixtures by setting
+`RAG_SOURCE_DIRS=documents/fixtures`; leave it unset to scan the default
+`./documents` tree.
+
 All variables are consumed by `src/rag_pipeline/config.py`. When running in
 Docker Compose, set them inside the ingestion service container so both the
 CLI and the ingestion skill share the same configuration.
 
 ## CLI Usage
 
-The CLI provides a batch-friendly entry point once `src/rag_pipeline/cli.py`
-is implemented. Example invocation:
+The CLI provides a batch-friendly entry point via `src/rag_pipeline/cli.py`.
+Example invocation:
 
 ```bash
 uv run python -m src.rag_pipeline.cli \
