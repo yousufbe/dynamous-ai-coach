@@ -140,15 +140,24 @@ the example frontend in development mode.
 
 ## Current implementation status
 
-- **Ready today.**  The ingestion CLI, Docling chunking, logging and validation
-  workflows described in `docs/post_ingestion_validation.md` are fully wired.
-  Follow the Quickstart to ingest data and observe the structured logs.
-- **Placeholder responses.**  `RAGAgent.chat` still echoes queries.
-  Retrieval + LLM integration is tracked in
-  `PRPs/requests/next_steps_end_to_end_experience.md` (Phase 3).
-- **Frontend integration pending.**  The React/Vite example still targets
-  Gemini via `geminiService.ts`. Phase 2 of the plan will swap it over to the
-  FastAPI `/chat` endpoint once retrieval is live.
+- **Ingestion + retrieval wired.** The Docling ingestion CLI and skill are in place,
+  storing chunks in Postgres/PGVector via `SupabaseStore`. `/chat` routes through
+  `RAGAgent` using `DatabaseRetriever` plus the configured LLM client; when the DB
+  or LLM endpoint is missing it falls back to a deterministic summary so wiring can
+  still be validated.
+- **Observability.** Correlation IDs thread through retrieval, embeddings, and LLM
+  calls. Install the optional `langfuse` dependency (e.g., `pip install langfuse`)
+  and enable tracing by setting `LANGFUSE_ENABLED=true` with host
+  `http://127.0.0.1:3000` (worker at `http://127.0.0.1:3030`) and providing
+  `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` (placeholders in `.env.example`).
+  Tracing is no-op when disabled.
+- **GPU selection.** Prefer your primary GPU by exporting `CUDA_VISIBLE_DEVICES=0`
+  and using `GPU_DEVICE=cuda:0` (default). Logs report the resolved device; if CUDA
+  is unavailable the system falls back to CPU. If secondary GPUs are unsupported
+  (e.g., GTX 1060 sm_61), PyTorch will warn; pin to `CUDA_VISIBLE_DEVICES=0` to
+  keep work on the RTX 3080.
+- **Frontend integration pending.** The React/Vite example defaults to the FastAPI
+  `/chat` endpoint with a Gemini fallback; further UX polish remains in later plans.
 
 ## Ingestion Skill
 

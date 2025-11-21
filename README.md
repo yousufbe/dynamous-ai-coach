@@ -152,6 +152,8 @@ The agent and pipeline are configuration‑driven:
 - `QWEN_API_KEY` (used by the embedding client when calling hosted Qwen APIs)
 - `RETRIEVAL_TOP_K` / `RETRIEVAL_MIN_SCORE` (tune how many chunks are pulled into prompts)
 - `QWEN_EMBEDDING_BASE_URL` (optional override for the embedding endpoint)
+- Optional observability: install the `langfuse` package in your environment (e.g., `pip install langfuse`), then set `LANGFUSE_ENABLED=true`, `LANGFUSE_HOST` (default `http://127.0.0.1:3000`), and `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` to send traces to your Langfuse stack. The keys are stubbed in `.env.example` for convenience.
+- GPU pinning: export `CUDA_VISIBLE_DEVICES=0` to prefer your primary GPU and set `GPU_DEVICE=cuda:0` (defaults to this) to align internal logging/device selection. Falls back to CPU if CUDA is unavailable. If you have additional unsupported GPUs (e.g., GTX 1060 sm_61), PyTorch may warn; keeping `CUDA_VISIBLE_DEVICES=0` silences that and keeps work on the RTX 3080.
 
 For a minimal local setup you can start by accepting the default model names
 and providing only the embedding API key:
@@ -227,11 +229,12 @@ answers grounded in your ingested documents.
 ### 6. (Optional) Try the example frontend UI
 
 A working frontend UI example built with React and Vite lives in
-`PRPs/examples/Front_end_UI_example`. It currently targets the Gemini API via a
-`geminiService` helper. The planned Phase 4 work will adapt this example to use
-the local FastAPI `/chat` endpoint instead so you can run a fully local UI.
+`PRPs/examples/Front_end_UI_example`. Configure it against the FastAPI backend
+by exporting `VITE_PROVIDER=fastapi` and (optionally) `VITE_BACKEND_URL` (default
+`http://localhost:8030`). The Gemini flow remains available with
+`VITE_PROVIDER=gemini` and `VITE_GEMINI_API_KEY`.
 
-For now you can run the example as‑is to explore the UI patterns:
+To run the example:
 
 ```bash
 cd PRPs/examples/Front_end_UI_example
@@ -240,6 +243,7 @@ npm run dev
 ```
 
 Refer to `PRPs/examples/Front_end_UI_example/README.md` for the latest details.
+Task tracking/automation lives at the Archon host `http://localhost:8181`.
 
 ### What you get after setup
 

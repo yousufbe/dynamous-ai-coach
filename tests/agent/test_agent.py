@@ -21,6 +21,11 @@ def _build_settings() -> Settings:
         llm_api_key=None,
         retrieval_top_k=3,
         retrieval_min_score=0.2,
+        langfuse_enabled=False,
+        langfuse_host=None,
+        langfuse_public_key=None,
+        langfuse_secret_key=None,
+        gpu_device="cuda:0",
     )
 
 
@@ -28,7 +33,14 @@ class FakeRetriever(RetrieverProtocol):
     def __init__(self) -> None:
         self.calls: list[tuple[str, int, float]] = []
 
-    async def retrieve(self, query: str, *, top_k: int, min_score: float) -> list[RetrievedChunk]:
+    async def retrieve(
+        self,
+        query: str,
+        *,
+        top_k: int,
+        min_score: float,
+        correlation_id: str | None = None,
+    ) -> list[RetrievedChunk]:
         self.calls.append((query, top_k, min_score))
         return [
             RetrievedChunk(
@@ -54,7 +66,14 @@ class FakeLLMClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, list[str]]] = []
 
-    def generate_answer(self, *, system_prompt: str, query: str, context: list[str]) -> LLMResult:
+    def generate_answer(
+        self,
+        *,
+        system_prompt: str,
+        query: str,
+        context: list[str],
+        correlation_id: str | None = None,
+    ) -> LLMResult:
         self.calls.append((system_prompt, query, context))
         return LLMResult(content=f"Answer for {query} with {len(context)} contexts")
 

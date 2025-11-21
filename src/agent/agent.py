@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, replace
+from uuid import uuid4
 from typing import Sequence
 
 from pydantic import BaseModel
@@ -11,8 +12,10 @@ from src.rag_pipeline.config import get_rag_ingestion_config
 from src.rag_pipeline.embeddings import QwenEmbeddingClient
 from src.rag_pipeline.persistence import PsycopgDatabaseClient, SupabaseStore
 from src.rag_pipeline.retrieval import DatabaseRetriever, NullRetriever, RetrievedChunk, RetrieverProtocol
+from src.shared.device import DeviceInfo, select_device
 from src.shared.config import Settings, get_settings
 from src.shared.logging import LoggerProtocol, get_logger
+from src.shared.tracing import Tracer, build_tracer, noop_tracer
 from src.tools.ingestion_skill.schemas import IngestionSkillRequest, IngestionSkillResponse
 from src.tools.ingestion_skill.tool import ingestion_skill_tool
 
@@ -73,6 +76,7 @@ class RAGAgent:
         retriever: RetrieverProtocol | None = None,
         llm_client: LLMClient | None = None,
         logger: LoggerProtocol | None = None,
+        tracer: Tracer | None = None,
     ) -> None:
         """Initialize the RAG agent with configuration settings.
 
@@ -82,9 +86,13 @@ class RAGAgent:
             retriever: Optional retrieval service override for testing.
             llm_client: Optional LLM client override for testing.
             logger: Optional logger override.
+            tracer: Optional tracing client override; defaults to a no-op when
+                Langfuse is disabled or unavailable.
         """
         self.settings = settings if settings is not None else get_settings()
         self._logger = logger or get_logger(__name__)
+        self._tracer = tracer if tracer is not None else self._build_tracer()
+        self.device: DeviceInfo = select_device(preferred_device=self.settings.gpu_device)
         self.tools: dict[str, object] = {
             "ingestion_skill": ingestion_skill_tool,
         }
@@ -98,7 +106,7 @@ class RAGAgent:
             embedding_model=self.settings.embedding_model,
         )
 
-    async def chat(self, request: ChatRequest) -> ChatResponse:
+    async def chat(self, request: ChatRequest, *, correlation_id: str | None = None) -> ChatResponse:
         """Generate an answer for the given chat request.
 
         Retrieval and generation are orchestrated here: the retriever fetches
@@ -106,38 +114,49 @@ class RAGAgent:
 
         Args:
             request: ChatRequest containing the user query.
+            correlation_id: Optional identifier propagated through logs.
 
         Returns:
             ChatResponse with a grounded answer and associated citations.
         """
+        resolved_correlation_id = correlation_id or uuid4().hex
         self._logger.info(
             "chat_started",
             query_length=len(request.query),
+            correlation_id=resolved_correlation_id,
         )
-        retrieved_chunks = await self.retriever.retrieve(
-            request.query,
-            top_k=self.settings.retrieval_top_k,
-            min_score=self.settings.retrieval_min_score,
-        )
-        context_blocks: list[str] = [self._format_context(chunk) for chunk in retrieved_chunks]
-        llm_result: LLMResult = await asyncio.to_thread(
-            self.llm_client.generate_answer,
-            system_prompt=(
-                "You are a company assistant. Answer using only the provided context. "
-                "Cite sources by name, keep answers concise, and avoid speculation."
-            ),
-            query=request.query,
-            context=context_blocks,
-        )
-        answer_text = llm_result.content
-        citations = self._build_citations(retrieved_chunks)
-        response: ChatResponse = ChatResponse(answer=answer_text, citations=citations)
-        self._logger.info(
-            "chat_completed",
-            answer_length=len(response.answer),
-            citations_count=len(response.citations),
-        )
-        return response
+        with self._tracer.span(
+            name="chat",
+            correlation_id=resolved_correlation_id,
+            attributes={"query_length": len(request.query)},
+        ):
+            retrieved_chunks = await self.retriever.retrieve(
+                request.query,
+                top_k=self.settings.retrieval_top_k,
+                min_score=self.settings.retrieval_min_score,
+                correlation_id=resolved_correlation_id,
+            )
+            context_blocks: list[str] = [self._format_context(chunk) for chunk in retrieved_chunks]
+            llm_result: LLMResult = await asyncio.to_thread(
+                self.llm_client.generate_answer,
+                system_prompt=(
+                    "You are a company assistant. Answer using only the provided context. "
+                    "Cite sources by name, keep answers concise, and avoid speculation."
+                ),
+                query=request.query,
+                context=context_blocks,
+                correlation_id=resolved_correlation_id,
+            )
+            answer_text = llm_result.content
+            citations = self._build_citations(retrieved_chunks)
+            response: ChatResponse = ChatResponse(answer=answer_text, citations=citations)
+            self._logger.info(
+                "chat_completed",
+                answer_length=len(response.answer),
+                citations_count=len(response.citations),
+                correlation_id=resolved_correlation_id,
+            )
+            return response
 
     async def ingest_documents(self, request: IngestionSkillRequest) -> IngestionSkillResponse:
         """Expose the ingestion skill via the agent API."""
@@ -157,6 +176,7 @@ class RAGAgent:
             self._embedding_client = QwenEmbeddingClient.from_config(
                 config=merged_config,
                 api_key=self.settings.qwen_api_key,
+                tracer=self._tracer,
             )
             self._db_client = PsycopgDatabaseClient(merged_config.database_url)
             store = SupabaseStore(db=self._db_client, config=merged_config)
@@ -164,6 +184,7 @@ class RAGAgent:
                 embedding_client=self._embedding_client,
                 store=store,
                 logger=self._logger,
+                tracer=self._tracer,
             )
         except Exception as exc:  # noqa: BLE001
             self._logger.warning(
@@ -178,7 +199,17 @@ class RAGAgent:
             base_url=self.settings.llm_base_url,
             api_key=self.settings.llm_api_key,
         )
-        return LLMClient(config=config, logger=self._logger)
+        return LLMClient(config=config, logger=self._logger, tracer=self._tracer)
+
+    def _build_tracer(self) -> Tracer:
+        if not self.settings.langfuse_enabled:
+            return noop_tracer()
+        return build_tracer(
+            enabled=self.settings.langfuse_enabled,
+            host=self.settings.langfuse_host,
+            public_key=self.settings.langfuse_public_key,
+            secret_key=self.settings.langfuse_secret_key,
+        )
 
     @staticmethod
     def _format_context(chunk: RetrievedChunk) -> str:

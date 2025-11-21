@@ -35,7 +35,7 @@ Each tool is a vertical slice containing simple tool.py, schemas.py, service.py.
 
 - Treat the fine-tuned embeddings workflow as the baseline retrieval plan. Before touching the code, review `PRPs/ai_docs/fine-tuned-embeddings.md` for requirements and `PRPs/examples/fine_tuned_embeddings.py` for the reference agent slice.
 - **Data prep:** Build or synthesize domain-specific query/document pairs from the corpus folders; store metadata (source, version, doc ids) so experiments stay reproducible.
-- **Training loop:** Fine-tune a SentenceTransformer checkpoint (start with `all-MiniLM-L6-v2`) with MultipleNegativesRankingLoss, track parameters, and persist the resulting model artifact under a versioned path consumable by the ingestion pipeline.
+- **Training loop:** Fine-tune a SentenceTransformer checkpoint (start with `Qwen/Qwen3-Embedding-0.6B`) with MultipleNegativesRankingLoss, track parameters, and persist the resulting model artifact under a versioned path consumable by the ingestion pipeline.
 - **Evaluation:** Add regression suites that compare recall@k of the fine-tuned model vs. the base embeddings on held-out validation queries before promoting a new model.
 - **Integration:** Update ingestion/retrieval services so `rag_pipeline` uses the versioned fine-tuned model for chunk embeddings, and expose configuration flags to fall back to baseline embeddings when tests need them.
 - **Observability:** Log the model fingerprint, training data snapshot, and retrieval performance whenever the agent serves answers so support engineers can trace regressions quickly.
@@ -110,3 +110,4 @@ When debugging:
 - Look for `duration_ms` to identify bottlenecks
 - Exception logs include full stack traces with local variables (dev mode)
 - All context is in structured log fields—use them to understand and fix issues
+- Archon task tracking host: `http://localhost:8181`

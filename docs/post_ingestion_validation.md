@@ -1,4 +1,4 @@
-# Post-Ingestion Validation Summary — 2025-11-20
+# Post-Ingestion Validation Summary — 2025-11-21
 
 This note captures the latest validation evidence after aligning documentation
 and enabling retrieval-backed chat. All commands were run from the repo root
@@ -8,24 +8,43 @@ using the project virtualenv binaries.
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `.venv/bin/ruff check src tests` | ✅ Pass | No findings. |
+| `.venv/bin/ruff check src` | ✅ Pass | Clean after Langfuse optional dependency docs. |
 | `.venv/bin/mypy src` | ✅ Pass | Strict mode clean. |
-| `.venv/bin/pytest tests -m "not performance"` | ✅ 45 passed, 1 deselected | One performance suite deselected by marker. |
+| `.venv/bin/pytest tests -v` | ✅ 48 passed, 1 skipped | Performance benchmark marked `@pytest.mark.performance` remains skipped; GPU1 capability warning still emitted by PyTorch. |
+| `RUN_PERFORMANCE=1 .venv/bin/pytest tests/performance -m performance` | ⚠️ Skipped | Set `RUN_PERFORMANCE=1` to enable the throughput benchmark; left skipped on this pass. |
 
 ## Tooling & Environment
 
 - Python 3.12.3, ruff 0.14.5, mypy 1.18.2, pytest 9.0.1 (virtualenv binaries).
-- Tests run with `-m "not performance"` to keep performance benchmarks opt-in.
+- Tests run with the full suite; `tests/performance/test_ingestion_performance.py::test_ingestion_performance_baseline` is marked `@pytest.mark.performance` and skips by default.
 
 ## Code Adjustments
 
-- No code changes were required for this validation run; prior adjustments (Docling backend hardening, pipeline/config typing, Archon skill docstring) remain in place.
+- Correlation IDs now propagate through `/chat` → retrieval → LLM and embedding logs, enabling end-to-end traceability.
+- FastAPI `/chat` endpoint logs include `correlation_id` alongside payload metrics.
 
 ## Known Follow-Ups
 
-- Performance benchmark suite (`tests/performance`) remains deselected; run manually on suitable hardware.
+- Performance benchmark suite (`tests/performance`) remains deselected; set `RUN_PERFORMANCE=1` to run it on suitable hardware.
 - If retrieval/LLM configuration changes, re-run the toolchain and update this note to keep dates/results fresh.
 - Fixture-only ingestion runs are acceptable for smoke tests; set `RAG_SOURCE_DIRS=documents/fixtures` when you only need to validate the pipeline wiring.
+- PyTorch warns that GPU1 (GTX 1060, sm_61) is unsupported for the current build; pin to `CUDA_VISIBLE_DEVICES=0` to keep work on the RTX 3080.
+
+## Retrieval and LLM Log Fields
+
+- `retrieval_started`: `query_length`, `top_k`, `min_score`, `correlation_id`
+- `retrieval_completed`: `results_count`, `duration_ms`, `correlation_id`
+- `retrieval_failed`: `error`, `correlation_id`
+- `llm_call_completed`: `duration_ms`, `retry_count`, `correlation_id`
+- `llm_call_failed`: `attempt`, `error`, `correlation_id`
+- Embedding batches log `embedding_batch_started` / `embedding_batch_succeeded` / `embedding_batch_failed` with `correlation_id` when provided by callers.
+- Langfuse tracing is available when `LANGFUSE_ENABLED=true` with host `http://127.0.0.1:3000` (worker `http://127.0.0.1:3030`); install the optional `langfuse` package and supply `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` (placeholders live in `.env.example`). Tracing is a no-op when disabled or keys are absent.
+
+## GPU Selection Checklist
+
+- Export `CUDA_VISIBLE_DEVICES=0` to prefer the primary GPU (3080).
+- Ensure `GPU_DEVICE=cuda:0` (default) so logs reflect the intended device.
+- Run a short workload and confirm `nvidia-smi` shows GPU 0 utilization; warnings are logged if CUDA is unavailable (fallback to CPU).
 
 ## Fixture Ingestion Checklist (Smoke Test)
 

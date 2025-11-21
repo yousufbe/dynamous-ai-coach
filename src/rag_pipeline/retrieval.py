@@ -8,6 +8,7 @@ from typing import Any, Mapping, Protocol, Sequence
 from src.rag_pipeline.embeddings import QwenEmbeddingClient
 from src.rag_pipeline.schemas import JSONValue
 from src.shared.logging import LoggerProtocol, get_logger
+from src.shared.tracing import Tracer, noop_tracer
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,7 +26,14 @@ class RetrievedChunk:
 class RetrieverProtocol(Protocol):
     """Contract for query-time retrieval services."""
 
-    async def retrieve(self, query: str, *, top_k: int, min_score: float) -> list[RetrievedChunk]:
+    async def retrieve(
+        self,
+        query: str,
+        *,
+        top_k: int,
+        min_score: float,
+        correlation_id: str | None = None,
+    ) -> list[RetrievedChunk]:
         """Return relevant chunks for the provided query."""
 
 
@@ -45,7 +53,14 @@ class RetrievalStoreProtocol(Protocol):
 class NullRetriever(RetrieverProtocol):
     """No-op retriever used when dependencies are unavailable."""
 
-    async def retrieve(self, query: str, *, top_k: int, min_score: float) -> list[RetrievedChunk]:
+    async def retrieve(
+        self,
+        query: str,
+        *,
+        top_k: int,
+        min_score: float,
+        correlation_id: str | None = None,
+    ) -> list[RetrievedChunk]:
         """Return an empty result set regardless of input."""
         return []
 
@@ -59,18 +74,28 @@ class DatabaseRetriever(RetrieverProtocol):
         embedding_client: QwenEmbeddingClient,
         store: RetrievalStoreProtocol,
         logger: LoggerProtocol | None = None,
+        tracer: Tracer | None = None,
     ) -> None:
         self._embedding_client = embedding_client
         self._store = store
         self._logger = logger or get_logger(__name__)
+        self._tracer = tracer or noop_tracer()
 
-    async def retrieve(self, query: str, *, top_k: int, min_score: float) -> list[RetrievedChunk]:
+    async def retrieve(
+        self,
+        query: str,
+        *,
+        top_k: int,
+        min_score: float,
+        correlation_id: str | None = None,
+    ) -> list[RetrievedChunk]:
         """Embed the query and return similar chunks.
 
         Args:
             query: User query text.
             top_k: Maximum number of chunks to return.
             min_score: Minimum similarity score filter.
+            correlation_id: Optional identifier used for log correlation.
 
         Returns:
             Retrieved chunks ordered by similarity descending.
@@ -84,40 +109,58 @@ class DatabaseRetriever(RetrieverProtocol):
             stripped_query,
             safe_top_k,
             min_score,
+            correlation_id,
         )
 
-    def _retrieve_sync(self, query: str, top_k: int, min_score: float) -> list[RetrievedChunk]:
+    def _retrieve_sync(
+        self,
+        query: str,
+        top_k: int,
+        min_score: float,
+        correlation_id: str | None,
+    ) -> list[RetrievedChunk]:
         start = perf_counter()
         self._logger.info(
             "retrieval_started",
             query_length=len(query),
             top_k=top_k,
             min_score=min_score,
+            correlation_id=correlation_id,
         )
-        try:
-            embedding_response = self._embedding_client.embed_texts([query])
-            if not embedding_response.embeddings:
-                self._logger.warning("retrieval_skipped_no_embedding")
+        with self._tracer.span(
+            name="retrieval",
+            correlation_id=correlation_id,
+            attributes={"top_k": top_k, "min_score": min_score},
+        ):
+            try:
+                embedding_response = self._embedding_client.embed_texts(
+                    [query],
+                    correlation_id=correlation_id,
+                )
+                if not embedding_response.embeddings:
+                    self._logger.warning("retrieval_skipped_no_embedding")
+                    return []
+                query_embedding = embedding_response.embeddings[0].vector
+                rows = self._store.match_chunks(
+                    query_embedding=query_embedding,
+                    match_count=top_k,
+                    min_score=min_score,
+                )
+                results = [self._map_row(row) for row in rows]
+                self._logger.info(
+                    "retrieval_completed",
+                    results_count=len(results),
+                    duration_ms=(perf_counter() - start) * 1000.0,
+                    correlation_id=correlation_id,
+                )
+                return results
+            except Exception as exc:  # noqa: BLE001
+                self._logger.exception(
+                    "retrieval_failed",
+                    error=str(exc),
+                    correlation_id=correlation_id,
+                )
                 return []
-            query_embedding = embedding_response.embeddings[0].vector
-            rows = self._store.match_chunks(
-                query_embedding=query_embedding,
-                match_count=top_k,
-                min_score=min_score,
-            )
-            results = [self._map_row(row) for row in rows]
-            self._logger.info(
-                "retrieval_completed",
-                results_count=len(results),
-                duration_ms=(perf_counter() - start) * 1000.0,
-            )
-            return results
-        except Exception as exc:  # noqa: BLE001
-            self._logger.exception(
-                "retrieval_failed",
-                error=str(exc),
-            )
-            return []
 
     @staticmethod
     def _map_row(row: Mapping[str, Any]) -> RetrievedChunk:

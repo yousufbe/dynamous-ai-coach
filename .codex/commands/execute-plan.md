@@ -10,6 +10,7 @@ You are about to execute a comprehensive development plan with integrated Archon
 ## Critical Requirements
 
 **MANDATORY**: Throughout the ENTIRE execution of this plan, you MUST maintain continuous usage of Archon for task management. DO NOT drop or skip Archon integration at any point. Every task from the plan must be tracked in Archon from creation to completion.
+- **Documentation guardrail**: Do NOT move a task to review/done until user-facing docs (README.md, AGENTS.md, relevant `docs/*.md` or PRPs) are updated to reflect behaviour changes and the updates are noted in task details.
 
 ## Step 1: Read and Parse the Plan
 

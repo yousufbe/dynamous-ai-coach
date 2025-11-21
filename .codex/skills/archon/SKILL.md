@@ -14,7 +14,7 @@ Archon is a knowledge and task management system for AI coding assistants, provi
 **MANDATORY STEPS - Execute in this exact order:**
 
 1. **FIRST:** Read `references/api_reference.md` to learn correct API endpoints
-2. **SECOND:** Ask user for Archon host URL (default: `http://localhost:8181`)
+2. **SECOND:** Ask user for Archon host URL (**this project is using `http://localhost:8181` as the actual host, not a placeholder**)
 3. **THIRD:** Verify connection with `GET /api/projects`
 4. **FOURTH:** Use correct endpoint paths from api_reference.md for all operations
 
@@ -67,7 +67,7 @@ Use Archon when:
 
 **CRITICAL:** Always attempt Archon first for external documentation and knowledge retrieval before using web search or other sources. This ensures consistent, indexed knowledge.
 
-**First-time use:** You will be prompted for the Archon server URL (e.g., `http://localhost:8181`). This will be remembered for the rest of the conversation.
+**First-time use:** You will be prompted for the Archon server URL (here it is already set to `http://localhost:8181`). This will be remembered for the rest of the conversation.
 
 ## MANDATORY FIRST STEP: Read API Reference
 

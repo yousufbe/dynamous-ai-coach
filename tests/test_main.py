@@ -21,7 +21,7 @@ def test_chat_endpoint_responds(monkeypatch: pytest.MonkeyPatch) -> None:
     """Chat endpoint should return a grounded answer shape."""
 
     class FakeAgent:
-        async def chat(self, request: ChatRequest) -> ChatResponse:
+        async def chat(self, request: ChatRequest, *, correlation_id: str | None = None) -> ChatResponse:
             return ChatResponse(
                 answer=f"Echo: {request.query}",
                 citations=[Citation(source="doc-one", chunk_id="1", score=0.9)],

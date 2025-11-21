@@ -198,6 +198,7 @@ Before finalizing the plan:
 - **Reference everything**: Include links, file paths, and examples
 - **Consider the existing codebase**: Follow established patterns and conventions
 - **Think about testing**: Include testing tasks in the plan
+- **Document the docs**: Plans are incomplete without explicit tasks to update user-facing docs (README.md, AGENTS.md, key `docs/*.md`, relevant PRPs) when behaviour changes.
 - **Size tasks appropriately**: Not too large, not too granular
 
 ## Output

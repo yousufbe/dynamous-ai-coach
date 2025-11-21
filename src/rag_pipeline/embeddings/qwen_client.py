@@ -20,6 +20,7 @@ import requests
 from src.rag_pipeline.config import RagIngestionConfig
 from src.rag_pipeline.schemas import ChunkData, EmbeddingRecord
 from src.shared.logging import LoggerProtocol, get_logger
+from src.shared.tracing import Tracer, noop_tracer
 
 DEFAULT_QWEN_EMBEDDING_URL = (
     "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding"
@@ -78,6 +79,7 @@ class QwenEmbeddingClient:
         expected_dimensions: int = 1024,
         batch_size: int = 8,
         session: requests.Session | None = None,
+        tracer: Tracer | None = None,
     ) -> None:
         self._model = model
         self._api_key = api_key
@@ -88,6 +90,7 @@ class QwenEmbeddingClient:
         self._expected_dimensions = expected_dimensions
         self._batch_size = max(1, batch_size)
         self._session = session or requests.Session()
+        self._tracer = tracer or noop_tracer()
         self._headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -111,6 +114,7 @@ class QwenEmbeddingClient:
         api_key: str | None = None,
         base_url: str | None = None,
         session: requests.Session | None = None,
+        tracer: Tracer | None = None,
     ) -> "QwenEmbeddingClient":
         """Construct the client using RagIngestionConfig defaults."""
         resolved_api_key = api_key if api_key is not None else os.getenv("QWEN_API_KEY")
@@ -127,13 +131,14 @@ class QwenEmbeddingClient:
             expected_dimensions=config.embedding_dimension,
             batch_size=config.embedding_batch_size,
             session=session,
+            tracer=tracer,
         )
 
     def close(self) -> None:
         """Close the underlying HTTP session."""
         self._session.close()
 
-    def embed_texts(self, texts: Sequence[str]) -> EmbeddingResponse:
+    def embed_texts(self, texts: Sequence[str], *, correlation_id: str | None = None) -> EmbeddingResponse:
         """Embed the given texts, preserving order."""
         if not texts:
             return EmbeddingResponse(embeddings=[], metrics=[])
@@ -144,17 +149,23 @@ class QwenEmbeddingClient:
             batch_embeddings, batch_metric = self._embed_batch(
                 batch_id=batch_id,
                 texts=batch,
+                correlation_id=correlation_id,
             )
             embeddings.extend(batch_embeddings)
             metrics.append(batch_metric)
         return EmbeddingResponse(embeddings=embeddings, metrics=metrics)
 
-    def embed_document_chunks(self, chunks: Sequence[ChunkData]) -> list[EmbeddingRecord]:
+    def embed_document_chunks(
+        self,
+        chunks: Sequence[ChunkData],
+        *,
+        correlation_id: str | None = None,
+    ) -> list[EmbeddingRecord]:
         """Embed a list of ChunkData objects."""
         if not chunks:
             return []
         texts = [chunk.text for chunk in chunks]
-        response = self.embed_texts(texts=texts)
+        response = self.embed_texts(texts=texts, correlation_id=correlation_id)
         if len(response.embeddings) != len(chunks):
             raise EmbeddingError(
                 "Embedding count mismatch for document chunks.",
@@ -169,6 +180,7 @@ class QwenEmbeddingClient:
         *,
         batch_id: str,
         texts: Sequence[str],
+        correlation_id: str | None,
     ) -> tuple[list[EmbeddingRecord], EmbeddingBatchMetrics]:
         attempts = 0
         last_error: EmbeddingError | None = None
@@ -179,58 +191,67 @@ class QwenEmbeddingClient:
                 batch_id=batch_id,
                 item_count=len(texts),
                 attempt=attempts,
+                correlation_id=correlation_id,
             )
-            try:
-                vectors = self._invoke_api(
-                    batch_id=batch_id,
-                    texts=texts,
-                    attempt=attempts,
-                )
-                duration_ms = (perf_counter() - start) * 1000.0
-                logger.info(
-                    "embedding_batch_succeeded",
-                    batch_id=batch_id,
-                    item_count=len(texts),
-                    duration_ms=duration_ms,
-                    retry_count=attempts,
-                )
-                embeddings = [
-                    EmbeddingRecord(
-                        vector=tuple(vector),
-                        model=self._model,
-                        dimensions=self._expected_dimensions,
+            with self._tracer.span(
+                name="embedding_batch",
+                correlation_id=correlation_id,
+                attributes={"batch_id": batch_id, "item_count": len(texts)},
+            ):
+                try:
+                    vectors = self._invoke_api(
+                        batch_id=batch_id,
+                        texts=texts,
+                        attempt=attempts,
                     )
-                    for vector in vectors
-                ]
-                metrics = EmbeddingBatchMetrics(
-                    batch_id=batch_id,
-                    item_count=len(texts),
-                    retry_count=attempts,
-                    duration_ms=duration_ms,
-                )
-                return embeddings, metrics
-            except EmbeddingError as exc:
-                last_error = exc
-                logger.warning(
-                    "embedding_batch_failed",
-                    batch_id=batch_id,
-                    item_count=len(texts),
-                    status_code=exc.status_code,
-                    attempt=attempts,
-                    error=str(exc),
-                )
-                if attempts >= self._retry_count:
-                    raise
-                attempts += 1
-                backoff = self._retry_backoff_seconds * (2 ** (attempts - 1))
-                jitter = random.uniform(0.0, 0.5)
-                logger.info(
-                    "embedding_batch_retry_scheduled",
-                    batch_id=batch_id,
-                    attempt=attempts,
-                    backoff_seconds=backoff + jitter,
-                )
-                sleep(backoff + jitter)
+                    duration_ms = (perf_counter() - start) * 1000.0
+                    logger.info(
+                        "embedding_batch_succeeded",
+                        batch_id=batch_id,
+                        item_count=len(texts),
+                        duration_ms=duration_ms,
+                        retry_count=attempts,
+                        correlation_id=correlation_id,
+                    )
+                    embeddings = [
+                        EmbeddingRecord(
+                            vector=tuple(vector),
+                            model=self._model,
+                            dimensions=self._expected_dimensions,
+                        )
+                        for vector in vectors
+                    ]
+                    metrics = EmbeddingBatchMetrics(
+                        batch_id=batch_id,
+                        item_count=len(texts),
+                        retry_count=attempts,
+                        duration_ms=duration_ms,
+                    )
+                    return embeddings, metrics
+                except EmbeddingError as exc:
+                    last_error = exc
+                    logger.warning(
+                        "embedding_batch_failed",
+                        batch_id=batch_id,
+                        item_count=len(texts),
+                        status_code=exc.status_code,
+                        attempt=attempts,
+                        error=str(exc),
+                        correlation_id=correlation_id,
+                    )
+                    if attempts >= self._retry_count:
+                        raise
+                    attempts += 1
+                    backoff = self._retry_backoff_seconds * (2 ** (attempts - 1))
+                    jitter = random.uniform(0.0, 0.5)
+                    logger.info(
+                        "embedding_batch_retry_scheduled",
+                        batch_id=batch_id,
+                        attempt=attempts,
+                        backoff_seconds=backoff + jitter,
+                        correlation_id=correlation_id,
+                    )
+                    sleep(backoff + jitter)
         assert last_error is not None  # pragma: no cover - defensive
         raise last_error
 

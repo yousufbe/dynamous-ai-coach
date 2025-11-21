@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Final
 
 
 def _get_int(name: str, default: int) -> int:
@@ -42,6 +43,29 @@ def _get_float(name: str, default: float) -> float:
         raise ValueError(f"Invalid float for {name}: {raw}") from exc
 
 
+def _get_bool(name: str, default: bool) -> bool:
+    """Fetch a boolean from environment variables.
+
+    Args:
+        name: Environment variable name.
+        default: Value returned when the variable is unset.
+
+    Returns:
+        Parsed boolean value.
+    """
+    raw: str | None = os.getenv(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    truthy: Final[set[str]] = {"1", "true", "yes", "on"}
+    falsy: Final[set[str]] = {"0", "false", "no", "off"}
+    if value in truthy:
+        return True
+    if value in falsy:
+        return False
+    raise ValueError(f"Invalid boolean for {name}: {raw}")
+
+
 @dataclass(frozen=True)
 class Settings:
     """Application configuration loaded from environment variables.
@@ -69,6 +93,11 @@ class Settings:
     llm_api_key: str | None
     retrieval_top_k: int
     retrieval_min_score: float
+    langfuse_enabled: bool
+    langfuse_host: str | None
+    langfuse_public_key: str | None
+    langfuse_secret_key: str | None
+    gpu_device: str
 
 
 def get_settings() -> Settings:
@@ -96,6 +125,11 @@ def get_settings() -> Settings:
     llm_api_key: str | None = os.getenv("LLM_API_KEY")
     retrieval_top_k: int = _get_int("RETRIEVAL_TOP_K", default=5)
     retrieval_min_score: float = _get_float("RETRIEVAL_MIN_SCORE", default=0.2)
+    langfuse_enabled: bool = _get_bool("LANGFUSE_ENABLED", default=False)
+    langfuse_host: str | None = os.getenv("LANGFUSE_HOST")
+    langfuse_public_key: str | None = os.getenv("LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str | None = os.getenv("LANGFUSE_SECRET_KEY")
+    gpu_device: str = os.getenv("GPU_DEVICE", "cuda:0")
     return Settings(
         database_url=database_url,
         rag_database_url=rag_database_url,
@@ -106,4 +140,9 @@ def get_settings() -> Settings:
         llm_api_key=llm_api_key,
         retrieval_top_k=retrieval_top_k,
         retrieval_min_score=retrieval_min_score,
+        langfuse_enabled=langfuse_enabled,
+        langfuse_host=langfuse_host,
+        langfuse_public_key=langfuse_public_key,
+        langfuse_secret_key=langfuse_secret_key,
+        gpu_device=gpu_device,
     )

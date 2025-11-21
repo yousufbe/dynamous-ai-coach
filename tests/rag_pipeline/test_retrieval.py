@@ -9,7 +9,7 @@ class _FakeEmbeddingClient:
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
 
-    def embed_texts(self, texts: list[str]) -> EmbeddingResponse:
+    def embed_texts(self, texts: list[str], *, correlation_id: str | None = None) -> EmbeddingResponse:
         self.calls.append(list(texts))
         return EmbeddingResponse(
             embeddings=[EmbeddingRecord(vector=(0.1, 0.2), model="demo", dimensions=2)],
