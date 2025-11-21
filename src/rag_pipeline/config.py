@@ -36,6 +36,9 @@ class RagIngestionConfig:
             Docling's HybridChunker.
         docling_language: Language hint for Docling tokenisation.
         embedding_model: Identifier for the embedding model.
+        use_fine_tuned_embeddings: Toggle enabling a fine-tuned local model.
+        fine_tuned_model_path: Filesystem path to the fine-tuned model when the
+            flag above is enabled.
         embedding_batch_size: Number of chunks embedded per batch.
         embedding_retry_count: Total embedding retry attempts for transient
             failures.
@@ -60,6 +63,8 @@ class RagIngestionConfig:
     docling_chunk_target_tokens: int
     docling_language: str
     embedding_model: str
+    use_fine_tuned_embeddings: bool
+    fine_tuned_model_path: Path | None
     embedding_batch_size: int
     embedding_retry_count: int
     embedding_timeout_seconds: int
@@ -99,6 +104,19 @@ def get_rag_ingestion_config() -> RagIngestionConfig:
     supported_extensions: tuple[str, ...] = _parse_extensions(
         raw=os.getenv("RAG_SUPPORTED_EXTENSIONS"),
     )
+    use_fine_tuned_embeddings: bool = _get_bool(
+        "RAG_USE_FINE_TUNED_EMBEDDINGS",
+        default=_get_bool("USE_FINE_TUNED_EMBEDDINGS", default=False),
+    )
+    fine_tuned_raw: str | None = os.getenv(
+        "RAG_EMBEDDING_MODEL_FINE_TUNED_PATH",
+        os.getenv("EMBEDDING_MODEL_FINE_TUNED_PATH"),
+    )
+    fine_tuned_model_path: Path | None = (
+        Path(fine_tuned_raw).expanduser().resolve()
+        if fine_tuned_raw
+        else None
+    )
     return RagIngestionConfig(
         source_directories=source_directories,
         supported_extensions=supported_extensions,
@@ -114,6 +132,8 @@ def get_rag_ingestion_config() -> RagIngestionConfig:
             "RAG_EMBEDDING_MODEL",
             "Qwen/Qwen3-Embedding-0.6B",
         ),
+        use_fine_tuned_embeddings=use_fine_tuned_embeddings,
+        fine_tuned_model_path=fine_tuned_model_path,
         embedding_batch_size=_get_int("RAG_EMBEDDING_BATCH_SIZE", 8),
         embedding_retry_count=_get_int("RAG_EMBEDDING_RETRY_COUNT", 1),
         embedding_timeout_seconds=_get_int(

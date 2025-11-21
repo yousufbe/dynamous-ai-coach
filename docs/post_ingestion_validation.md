@@ -8,9 +8,12 @@ using the project virtualenv binaries.
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `.venv/bin/ruff check src` | ✅ Pass | Clean after Langfuse optional dependency docs. |
+| `.venv/bin/ruff check src tests` | ✅ Pass | Includes new embedding client/protocol modules. |
 | `.venv/bin/mypy src` | ✅ Pass | Strict mode clean. |
+| `.venv/bin/python -m pytest tests/rag_pipeline/embeddings -v` | ✅ 12 passed | Covers data prep, manifest, train/eval harness, factory selectors, and local client. |
+| `.venv/bin/python -m pytest tests/shared/test_config.py tests/rag_pipeline/test_config.py -v` | ✅ 11 passed | Confirms new fine-tuned flags and ingestion config parsing. |
 | `.venv/bin/pytest tests -v` | ✅ 48 passed, 1 skipped | Performance benchmark marked `@pytest.mark.performance` remains skipped; GPU1 capability warning still emitted by PyTorch. |
+| Fine-tuned ingestion smoke | ✅ Pass | Using `RAG_DATABASE_URL=postgresql://postgres:temp123@127.0.0.1:5439/postgres`, `RAG_SUPABASE_SCHEMA=rag`, `RAG_EMBEDDING_DIMENSION=384`, `RAG_FORCE_REINGEST=true`, and `USE_FINE_TUNED_EMBEDDINGS=true` with model path `models/fine_tuned/demo`; ingested 3 fixture docs (6 chunks) with `dataset_fingerprint=smoke-fp`, `artifact_version=demo-smoke`. |
 | `RUN_PERFORMANCE=1 .venv/bin/pytest tests/performance -m performance` | ⚠️ Skipped | Set `RUN_PERFORMANCE=1` to enable the throughput benchmark; left skipped on this pass. |
 
 ## Tooling & Environment
@@ -37,7 +40,12 @@ using the project virtualenv binaries.
 - `retrieval_failed`: `error`, `correlation_id`
 - `llm_call_completed`: `duration_ms`, `retry_count`, `correlation_id`
 - `llm_call_failed`: `attempt`, `error`, `correlation_id`
-- Embedding batches log `embedding_batch_started` / `embedding_batch_succeeded` / `embedding_batch_failed` with `correlation_id` when provided by callers.
+- Embedding batches log `embedding_batch_started` / `embedding_batch_succeeded` / `embedding_batch_failed` with `correlation_id` when provided by callers. When the fine-tuned local client is enabled, logs include `embedding_model`, `embedding_dataset_fingerprint`, and `artifact_version`; tracer spans carry the same attributes.
+
+## Fine-tuned ingestion notes
+
+- Demo smoke used `models/fine_tuned/demo` (MiniLM 384-dim) and required setting `RAG_EMBEDDING_DIMENSION=384` plus altering `rag.chunks.embedding` to `vector(384)` to match the tuned model. If you swap models, align both the env dimension and table type.
+- Pinned `CUDA_VISIBLE_DEVICES=0` during the run to avoid unsupported GPU warnings. PyTorch still logs warnings for older GPUs; safe to ignore for CPU/primary GPU-only runs.
 - Langfuse tracing is available when `LANGFUSE_ENABLED=true` with host `http://127.0.0.1:3000` (worker `http://127.0.0.1:3030`); install the optional `langfuse` package and supply `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` (placeholders live in `.env.example`). Tracing is a no-op when disabled or keys are absent.
 
 ## GPU Selection Checklist

@@ -33,7 +33,12 @@ language model inference and modular skills into a cohesive system.
    hybrid retrieval【391127687261448†L549-L570】.【445922077582970†L49-L62】
 4. **Embedding model.**  Generates dense vectors for document chunks and
    queries.  Use Qwen3‑Embedding‑0.6B to ensure multilingual and long
-   context support【984059247734186†L65-L104】.
+   context support. To run a fine-tuned local model
+   instead of the remote Qwen endpoint, set `USE_FINE_TUNED_EMBEDDINGS=true`
+   and point `EMBEDDING_MODEL_FINE_TUNED_PATH` (or the ingestion-specific
+   `RAG_EMBEDDING_MODEL_FINE_TUNED_PATH`) at a SentenceTransformer artifact;
+   the pipeline will load that directory and read `manifest.json` metadata
+   when present.
 5. **Skills / Modules.**  Optional modules provide extended capabilities
    (e.g., logging, admin functions).  Follow the modular patterns described
    in `docs/skill_archon.md`【898591313443642†L80-L104】.
@@ -49,8 +54,12 @@ The diagram above maps directly to the Quickstart in `README.md`:
    `PRPs/examples/rag_pipeline_docling_supabase.sql`. Use the resulting
    connection string for both `DATABASE_URL` and `RAG_DATABASE_URL`.
 3. **Configure models.**  Export `EMBEDDING_MODEL`, `LLM_MODEL`, and
-   `QWEN_API_KEY`. `src/shared/config.py` documents the defaults, and
-   `docs/rag_pipeline_ingestion.md` lists every ingestion toggle.
+   `QWEN_API_KEY`. To use a fine-tuned local embedding model, set
+   `USE_FINE_TUNED_EMBEDDINGS=true` and provide
+   `EMBEDDING_MODEL_FINE_TUNED_PATH` (or `RAG_EMBEDDING_MODEL_FINE_TUNED_PATH`
+   when overriding only ingestion). `src/shared/config.py` documents the
+   defaults, and `docs/rag_pipeline_ingestion.md` lists every ingestion
+   toggle.
 4. **Ingest documents.**  Point `RAG_SOURCE_DIRS` at your corpora and run the
    CLI (`uv run python -m src.rag_pipeline.cli`). Monitor chunk counts,
    retries and metrics using structured logs plus

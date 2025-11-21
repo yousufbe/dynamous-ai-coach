@@ -24,6 +24,8 @@ and troubleshooting.
 | `RAG_DOCLING_TARGET_TOKENS` | Target token count for Docling HybridChunker. | `280` |
 | `RAG_DOCLING_LANGUAGE` | Language hint used by Docling tokeniser. | `en` |
 | `RAG_EMBEDDING_MODEL` | Embedding model identifier. | `Qwen/Qwen3-Embedding-0.6B` |
+| `RAG_USE_FINE_TUNED_EMBEDDINGS` | Use a local fine-tuned model instead of the remote Qwen endpoint. | `false` (inherits `USE_FINE_TUNED_EMBEDDINGS` when unset) |
+| `RAG_EMBEDDING_MODEL_FINE_TUNED_PATH` | Path to the fine-tuned SentenceTransformer directory (falls back to `EMBEDDING_MODEL_FINE_TUNED_PATH`). | _empty_ |
 | `RAG_EMBEDDING_BATCH_SIZE` | Chunk batch size for embedding calls. | `8` |
 | `RAG_EMBEDDING_RETRY_COUNT` | Number of automatic retries on failures. | `1` |
 | `RAG_EMBEDDING_TIMEOUT_SECONDS` | Timeout per embedding request. | `60` |
@@ -40,7 +42,9 @@ and troubleshooting.
 
 For smoke tests, you can target the bundled fixtures by setting
 `RAG_SOURCE_DIRS=documents/fixtures`; leave it unset to scan the default
-`./documents` tree.
+`./documents` tree. When using a fine-tuned model with a different dimension
+from the default (e.g., 384), set `RAG_EMBEDDING_DIMENSION` accordingly and
+ensure the `embedding` column type matches (`vector(<dim>)`) in your database.
 
 All variables are consumed by `src/rag_pipeline/config.py`. When running in
 Docker Compose, set them inside the ingestion service container so both the

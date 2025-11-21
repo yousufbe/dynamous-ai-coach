@@ -154,6 +154,12 @@ The agent and pipeline are configuration‑driven:
 - `QWEN_EMBEDDING_BASE_URL` (optional override for the embedding endpoint)
 - Optional observability: install the `langfuse` package in your environment (e.g., `pip install langfuse`), then set `LANGFUSE_ENABLED=true`, `LANGFUSE_HOST` (default `http://127.0.0.1:3000`), and `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` to send traces to your Langfuse stack. The keys are stubbed in `.env.example` for convenience.
 - GPU pinning: export `CUDA_VISIBLE_DEVICES=0` to prefer your primary GPU and set `GPU_DEVICE=cuda:0` (defaults to this) to align internal logging/device selection. Falls back to CPU if CUDA is unavailable. If you have additional unsupported GPUs (e.g., GTX 1060 sm_61), PyTorch may warn; keeping `CUDA_VISIBLE_DEVICES=0` silences that and keeps work on the RTX 3080.
+- Fine-tuned embeddings: set `USE_FINE_TUNED_EMBEDDINGS=true` and point
+  `EMBEDDING_MODEL_FINE_TUNED_PATH` (or `RAG_EMBEDDING_MODEL_FINE_TUNED_PATH`
+  for ingestion-only overrides) at a local SentenceTransformer directory. The
+  pipeline will load the tuned model instead of calling the remote Qwen API and
+  will emit any `manifest.json` metadata (dataset fingerprint, artifact
+  version) into logs and tracer spans.
 
 For a minimal local setup you can start by accepting the default model names
 and providing only the embedding API key:

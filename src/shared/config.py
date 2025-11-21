@@ -75,6 +75,9 @@ class Settings:
         rag_database_url: Optional override for Supabase/PGVector retrieval.
         embedding_model: Identifier for the embedding model used to create
             dense vectors for documents and queries.
+        use_fine_tuned_embeddings: Toggle for selecting the tuned model path
+            instead of the default embedding backend.
+        fine_tuned_model_path: Optional path to a fine-tuned embedding model.
         qwen_api_key: Optional token for Qwen embedding calls.
         llm_model: Identifier or path for the primary assistant language
             model used to answer user questions.
@@ -87,6 +90,8 @@ class Settings:
     database_url: str
     rag_database_url: str
     embedding_model: str
+    use_fine_tuned_embeddings: bool
+    fine_tuned_model_path: str | None
     qwen_api_key: str | None
     llm_model: str
     llm_base_url: str
@@ -116,6 +121,8 @@ def get_settings() -> Settings:
         "EMBEDDING_MODEL",
         "Qwen/Qwen3-Embedding-0.6B",
     )
+    use_fine_tuned_embeddings: bool = _get_bool("USE_FINE_TUNED_EMBEDDINGS", default=False)
+    fine_tuned_model_path: str | None = os.getenv("EMBEDDING_MODEL_FINE_TUNED_PATH")
     qwen_api_key: str | None = os.getenv("QWEN_API_KEY")
     llm_model: str = os.getenv(
         "LLM_MODEL",
@@ -134,6 +141,8 @@ def get_settings() -> Settings:
         database_url=database_url,
         rag_database_url=rag_database_url,
         embedding_model=embedding_model,
+        use_fine_tuned_embeddings=use_fine_tuned_embeddings,
+        fine_tuned_model_path=fine_tuned_model_path,
         qwen_api_key=qwen_api_key,
         llm_model=llm_model,
         llm_base_url=llm_base_url,

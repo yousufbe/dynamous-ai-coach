@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime as dt
+import sys
 import os
 from dataclasses import dataclass
 from typing import Any, Iterator, Protocol
@@ -80,6 +81,30 @@ class TracerConfig:
     secret_key: str | None
 
 
+class _LangfuseSpanAdapter:
+    """Adapter that provides the SpanProtocol interface for Langfuse spans."""
+
+    def __init__(self, span: Any) -> None:
+        self._span = span
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        otel_span = getattr(self._span, "_otel_span", None)
+        if otel_span is not None:
+            try:
+                otel_span.set_attribute(key, value)
+            except Exception:  # pragma: no cover - defensive
+                logger.exception("tracing_otlp_set_attribute_failed", key=key)
+
+    def end(self, **attributes: Any) -> None:
+        if attributes:
+            for key, value in attributes.items():
+                self.set_attribute(key, value)
+        try:
+            self._span.end()
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("tracing_otlp_span_end_failed")
+
+
 class Tracer:
     """Wrapper around Langfuse with a safe no-op fallback."""
 
@@ -87,6 +112,7 @@ class Tracer:
         self._config = config
         self._client: Any | None = None
         self.enabled = False
+        self._use_otlp_api = False
         self._setup_client()
 
     def _setup_client(self) -> None:
@@ -111,6 +137,7 @@ class Tracer:
                 secret_key=secret_key,
             )
             self.enabled = True
+            self._use_otlp_api = hasattr(self._client, "start_as_current_span")
             logger.info("tracing_langfuse_enabled", host=host)
         except Exception:  # pragma: no cover - optional dependency
             logger.exception("tracing_langfuse_init_failed", host=host)
@@ -125,6 +152,36 @@ class Tracer:
         correlation_id: str | None = None,
         attributes: dict[str, Any] | None = None,
     ) -> Iterator[SpanProtocol]:
+        if self._use_otlp_api and self._client is not None:
+            trace_id = self._generate_trace_id(correlation_id)
+            context: dict[str, str] | None = {"trace_id": trace_id} if trace_id else None
+            try:
+                span_cm = self._client.start_as_current_span(
+                    trace_context=context,
+                    name=name,
+                    metadata=attributes,
+                )
+                langfuse_span = span_cm.__enter__()
+                span: SpanProtocol = _LangfuseSpanAdapter(langfuse_span)
+            except Exception:  # pragma: no cover - defensive
+                logger.exception("tracing_otlp_span_start_failed", span_name=name)
+                span = _NoOpSpan(name=name, correlation_id=correlation_id)
+                span_cm = None
+
+            try:
+                yield span
+            except Exception as exc:
+                try:
+                    span.set_attribute("error", str(exc))
+                finally:
+                    if span_cm is not None:
+                        span_cm.__exit__(*sys.exc_info())
+                raise
+            else:
+                if span_cm is not None:
+                    span_cm.__exit__(None, None, None)
+            return
+
         if not self.enabled or self._client is None:
             span = _NoOpSpan(name=name, correlation_id=correlation_id)
             if attributes:
@@ -154,6 +211,20 @@ class Tracer:
             raise
         else:
             span.end()
+
+    def _generate_trace_id(self, correlation_id: str | None) -> str:
+        if self._client is None:
+            return ""
+        if correlation_id:
+            try:
+                return self._client.create_trace_id(seed=correlation_id)
+            except Exception:  # pragma: no cover - defensive
+                logger.exception("tracing_otlp_trace_id_seed_failed", correlation_id=correlation_id)
+        try:
+            return self._client.create_trace_id()
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("tracing_otlp_trace_id_failed")
+            return ""
 
 
 def build_tracer(

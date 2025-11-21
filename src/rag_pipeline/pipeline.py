@@ -11,7 +11,7 @@ from typing import Callable, Sequence
 
 from src.rag_pipeline.chunking.docling_chunker import DoclingChunker
 from src.rag_pipeline.config import RagIngestionConfig, get_rag_ingestion_config
-from src.rag_pipeline.embeddings import QwenEmbeddingClient
+from src.rag_pipeline.embeddings import EmbeddingClientProtocol
 from src.rag_pipeline.persistence import PersistenceStoreProtocol, SourceRow
 from src.rag_pipeline.schemas import (
     ChunkData,
@@ -41,7 +41,7 @@ class PipelineServices:
     """Aggregated dependencies needed by the ingestion pipeline."""
 
     chunker: DoclingChunker
-    embedding_client: QwenEmbeddingClient
+    embedding_client: EmbeddingClientProtocol
     persistence: PersistenceStoreProtocol
     clock: ClockFunc = _default_clock
     logger: LoggerProtocol = field(default_factory=lambda: get_logger(__name__))
@@ -55,10 +55,13 @@ def ingest_single_document(
     """Ingest a single document and return a status summary."""
     doc_logger = services.logger
     location = str(document.metadata.location)
+    embedding_info = services.embedding_client.model_info
     doc_logger.info(
         "document_ingestion_started",
         file=location,
         pipeline_id=config.pipeline_id,
+        embedding_model=embedding_info.model,
+        embedding_dataset_fingerprint=embedding_info.dataset_fingerprint,
     )
     start_perf = perf_counter()
     chunk_duration_ms = 0.0
@@ -76,7 +79,7 @@ def ingest_single_document(
         source_row = services.persistence.upsert_source(
             document=document,
             status=SourceIngestionStatus.PENDING,
-            embedding_model=config.embedding_model,
+            embedding_model=embedding_info.model,
         )
         try:
             chunk_start = perf_counter()
@@ -112,6 +115,8 @@ def ingest_single_document(
                 db_duration_ms=db_duration_ms,
                 chunks_ingested=chunk_count,
                 status=final_status.value,
+                embedding_model=embedding_info.model,
+                embedding_dataset_fingerprint=embedding_info.dataset_fingerprint,
             )
             return DocumentIngestionResult(
                 location=location,

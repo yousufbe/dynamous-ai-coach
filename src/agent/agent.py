@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, replace
+from pathlib import Path
 from uuid import uuid4
 from typing import Sequence
 
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 
 from src.agent.llm_client import LLMClient, LLMConfig, LLMResult
 from src.rag_pipeline.config import get_rag_ingestion_config
-from src.rag_pipeline.embeddings import QwenEmbeddingClient
+from src.rag_pipeline.embeddings import EmbeddingClientProtocol, create_embedding_client
 from src.rag_pipeline.persistence import PsycopgDatabaseClient, SupabaseStore
 from src.rag_pipeline.retrieval import DatabaseRetriever, NullRetriever, RetrievedChunk, RetrieverProtocol
 from src.shared.device import DeviceInfo, select_device
@@ -97,13 +98,14 @@ class RAGAgent:
             "ingestion_skill": ingestion_skill_tool,
         }
         self._db_client: PsycopgDatabaseClient | None = None
-        self._embedding_client: QwenEmbeddingClient | None = None
+        self._embedding_client: EmbeddingClientProtocol | None = None
         self.retriever = retriever or self._build_retriever()
         self.llm_client = llm_client or self._build_llm_client()
         self._logger.info(
             "rag_agent_initialized",
             llm_model=self.settings.llm_model,
             embedding_model=self.settings.embedding_model,
+            use_fine_tuned_embeddings=self.settings.use_fine_tuned_embeddings,
         )
 
     async def chat(self, request: ChatRequest, *, correlation_id: str | None = None) -> ChatResponse:
@@ -172,11 +174,18 @@ class RAGAgent:
                 config,
                 database_url=self.settings.rag_database_url,
                 embedding_model=self.settings.embedding_model,
+                use_fine_tuned_embeddings=self.settings.use_fine_tuned_embeddings,
+                fine_tuned_model_path=(
+                    Path(self.settings.fine_tuned_model_path).expanduser().resolve()
+                    if self.settings.fine_tuned_model_path
+                    else config.fine_tuned_model_path
+                ),
             )
-            self._embedding_client = QwenEmbeddingClient.from_config(
+            self._embedding_client = create_embedding_client(
                 config=merged_config,
-                api_key=self.settings.qwen_api_key,
                 tracer=self._tracer,
+                logger=self._logger,
+                api_key=self.settings.qwen_api_key,
             )
             self._db_client = PsycopgDatabaseClient(merged_config.database_url)
             store = SupabaseStore(db=self._db_client, config=merged_config)

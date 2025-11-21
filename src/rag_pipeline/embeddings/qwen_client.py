@@ -8,7 +8,6 @@ API key is read from ``QWEN_API_KEY`` unless provided explicitly.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
 from time import perf_counter, sleep
 from typing import Any, Iterable, Sequence
@@ -17,6 +16,11 @@ import random
 
 import requests
 
+from src.rag_pipeline.embeddings.client_types import (
+    EmbeddingBatchMetrics,
+    EmbeddingModelInfo,
+    EmbeddingResponse,
+)
 from src.rag_pipeline.config import RagIngestionConfig
 from src.rag_pipeline.schemas import ChunkData, EmbeddingRecord
 from src.shared.logging import LoggerProtocol, get_logger
@@ -46,24 +50,6 @@ class EmbeddingError(RuntimeError):
         self.retry_count = retry_count
 
 
-@dataclass(frozen=True, slots=True)
-class EmbeddingBatchMetrics:
-    """Metrics describing a single embedding batch invocation."""
-
-    batch_id: str
-    item_count: int
-    retry_count: int
-    duration_ms: float
-
-
-@dataclass(frozen=True, slots=True)
-class EmbeddingResponse:
-    """Return type for batch embedding operations."""
-
-    embeddings: list[EmbeddingRecord]
-    metrics: list[EmbeddingBatchMetrics]
-
-
 class QwenEmbeddingClient:
     """Minimal embedding client with retry/backoff and structured logging."""
 
@@ -91,6 +77,11 @@ class QwenEmbeddingClient:
         self._batch_size = max(1, batch_size)
         self._session = session or requests.Session()
         self._tracer = tracer or noop_tracer()
+        self.model_info = EmbeddingModelInfo(
+            model=model,
+            dataset_fingerprint=None,
+            artifact_version=None,
+        )
         self._headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",

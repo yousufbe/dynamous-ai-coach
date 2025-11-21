@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from src.rag_pipeline.chunking.docling_chunker import DoclingChunker
 from src.rag_pipeline.config import RagIngestionConfig
-from src.rag_pipeline.embeddings import QwenEmbeddingClient
+from src.rag_pipeline.embeddings import EmbeddingClientProtocol, create_embedding_client
 from src.rag_pipeline.persistence import PsycopgDatabaseClient, SupabaseStore
 from src.rag_pipeline.pipeline import PipelineServices
 from src.shared.logging import get_logger
@@ -12,11 +12,11 @@ from src.shared.logging import get_logger
 
 def create_pipeline_runtime(
     config: RagIngestionConfig,
-) -> tuple[PipelineServices, QwenEmbeddingClient, PsycopgDatabaseClient]:
+) -> tuple[PipelineServices, EmbeddingClientProtocol, PsycopgDatabaseClient]:
     """Build pipeline services along with the resources that require cleanup."""
     if not config.database_url:
         raise ValueError("RAG_DATABASE_URL must be configured.")
-    embedding_client: QwenEmbeddingClient | None = None
+    embedding_client: EmbeddingClientProtocol | None = None
     db_client: PsycopgDatabaseClient | None = None
     try:
         chunker = DoclingChunker(
@@ -24,7 +24,7 @@ def create_pipeline_runtime(
             chunk_max_chars=config.chunk_max_chars,
             docling_target_tokens=config.docling_chunk_target_tokens,
         )
-        embedding_client = QwenEmbeddingClient.from_config(config=config)
+        embedding_client = create_embedding_client(config=config)
         db_client = PsycopgDatabaseClient(config.database_url)
         store = SupabaseStore(db=db_client, config=config)
         services = PipelineServices(
@@ -42,7 +42,7 @@ def create_pipeline_runtime(
 
 
 def cleanup_runtime(
-    embedding_client: QwenEmbeddingClient,
+    embedding_client: EmbeddingClientProtocol,
     db_client: PsycopgDatabaseClient,
 ) -> None:
     """Close runtime resources while swallowing cleanup errors."""

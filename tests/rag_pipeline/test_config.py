@@ -18,11 +18,15 @@ from src.rag_pipeline.config import (
 def test_get_rag_ingestion_config_uses_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     """Environment variables are optional and sensible defaults exist."""
     monkeypatch.delenv("RAG_SOURCE_DIRS", raising=False)
+    monkeypatch.delenv("RAG_USE_FINE_TUNED_EMBEDDINGS", raising=False)
+    monkeypatch.delenv("RAG_EMBEDDING_MODEL_FINE_TUNED_PATH", raising=False)
     config = get_rag_ingestion_config()
     assert isinstance(config, RagIngestionConfig)
     assert config.source_directories
     assert config.supported_extensions == DEFAULT_SUPPORTED_EXTENSIONS
     assert config.chunk_min_chars < config.chunk_max_chars
+    assert config.use_fine_tuned_embeddings is False
+    assert config.fine_tuned_model_path is None
 
 
 @pytest.mark.unit
@@ -84,3 +88,23 @@ def test_embedding_dimension_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RAG_EMBEDDING_DIMENSION", "2048")
     config = get_rag_ingestion_config()
     assert config.embedding_dimension == 2048
+
+
+@pytest.mark.unit
+def test_use_fine_tuned_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Fine-tuned flags should read from both global and RAG-specific env vars."""
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    monkeypatch.setenv("USE_FINE_TUNED_EMBEDDINGS", "true")
+    monkeypatch.setenv("EMBEDDING_MODEL_FINE_TUNED_PATH", str(model_dir))
+    config = get_rag_ingestion_config()
+    assert config.use_fine_tuned_embeddings is True
+    assert config.fine_tuned_model_path == model_dir.resolve()
+
+    override_dir = tmp_path / "override"
+    override_dir.mkdir()
+    monkeypatch.setenv("RAG_USE_FINE_TUNED_EMBEDDINGS", "false")
+    monkeypatch.setenv("RAG_EMBEDDING_MODEL_FINE_TUNED_PATH", str(override_dir))
+    config_override = get_rag_ingestion_config()
+    assert config_override.use_fine_tuned_embeddings is False
+    assert config_override.fine_tuned_model_path == override_dir.resolve()

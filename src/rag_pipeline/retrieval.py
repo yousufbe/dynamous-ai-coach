@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, Mapping, Protocol, Sequence
 
-from src.rag_pipeline.embeddings import QwenEmbeddingClient
+from src.rag_pipeline.embeddings import EmbeddingClientProtocol
 from src.rag_pipeline.schemas import JSONValue
 from src.shared.logging import LoggerProtocol, get_logger
 from src.shared.tracing import Tracer, noop_tracer
@@ -71,7 +71,7 @@ class DatabaseRetriever(RetrieverProtocol):
     def __init__(
         self,
         *,
-        embedding_client: QwenEmbeddingClient,
+        embedding_client: EmbeddingClientProtocol,
         store: RetrievalStoreProtocol,
         logger: LoggerProtocol | None = None,
         tracer: Tracer | None = None,
@@ -120,17 +120,25 @@ class DatabaseRetriever(RetrieverProtocol):
         correlation_id: str | None,
     ) -> list[RetrievedChunk]:
         start = perf_counter()
+        embedding_info = self._embedding_client.model_info
         self._logger.info(
             "retrieval_started",
             query_length=len(query),
             top_k=top_k,
             min_score=min_score,
+            embedding_model=embedding_info.model,
+            embedding_dataset_fingerprint=embedding_info.dataset_fingerprint,
             correlation_id=correlation_id,
         )
         with self._tracer.span(
             name="retrieval",
             correlation_id=correlation_id,
-            attributes={"top_k": top_k, "min_score": min_score},
+            attributes={
+                "top_k": top_k,
+                "min_score": min_score,
+                "embedding_model": embedding_info.model,
+                "embedding_dataset_fingerprint": embedding_info.dataset_fingerprint or "",
+            },
         ):
             try:
                 embedding_response = self._embedding_client.embed_texts(
@@ -151,6 +159,8 @@ class DatabaseRetriever(RetrieverProtocol):
                     "retrieval_completed",
                     results_count=len(results),
                     duration_ms=(perf_counter() - start) * 1000.0,
+                    embedding_model=embedding_info.model,
+                    embedding_dataset_fingerprint=embedding_info.dataset_fingerprint,
                     correlation_id=correlation_id,
                 )
                 return results
